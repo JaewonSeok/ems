@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuthStore } from "../store/authStore";
 
 // ✅ /api 까지 포함해서 통일
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? "https://ems-9j17.onrender.com/api";
 
 const http = axios.create({ baseURL });
 
