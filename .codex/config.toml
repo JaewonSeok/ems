@@ -1,0 +1,4 @@
+# .codex/config.toml
+model = "gpt-5.3-codex"
+review_model = "gpt-5.3-codex"
+model_reasoning_effort = "xhigh"

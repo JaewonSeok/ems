@@ -1,0 +1,29 @@
+﻿# dependencies
+node_modules/
+**/node_modules/
+
+# build outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+**/out/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# editor / os
+.DS_Store
+.vscode/
+!.vscode/tasks.json

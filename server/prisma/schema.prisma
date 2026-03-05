@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum role_enum {
+  ADMIN
+  USER
+}
+
+enum training_type_enum {
+  OFFLINE
+  ONLINE
+}
+
+enum certificate_status_enum {
+  SUBMITTED
+  NOT_SUBMITTED
+}
+
+enum approval_status_enum {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model users {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique @db.VarChar(255)
+  password_hash  String    @db.VarChar(255)
+  employee_id    String    @unique @db.VarChar(50)
+  name           String    @db.VarChar(100)
+  department     String    @db.VarChar(100)
+  team           String    @db.VarChar(100)
+  role           role_enum
+  is_first_login Boolean   @default(true)
+  is_active      Boolean   @default(true)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  external_training_items external_trainings[] @relation("external_trainings_user")
+  internal_training_items internal_trainings[] @relation("internal_trainings_user")
+  internal_lecture_items  internal_lectures[]  @relation("internal_lectures_user")
+  certification_items     certifications[]     @relation("certifications_user")
+  approved_items          external_trainings[] @relation("external_trainings_approver")
+}
+
+model external_trainings {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  user_id            String                  @db.Uuid
+  training_name      String                  @db.VarChar(255)
+  type               training_type_enum
+  start_date         DateTime                @db.Date
+  end_date           DateTime                @db.Date
+  hours              Decimal                 @db.Decimal(6, 1)
+  cost               Int?
+  institution        String                  @db.VarChar(255)
+  certificate_status certificate_status_enum @default(NOT_SUBMITTED)
+  certificate_file   String?                 @db.VarChar(500)
+  approval_status    approval_status_enum    @default(PENDING)
+  approval_comment   String?
+  approved_by        String?                 @db.Uuid
+  approved_at        DateTime?
+  credits            Decimal?                @db.Decimal(4, 1)
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
+
+  user     users  @relation("external_trainings_user", fields: [user_id], references: [id], onDelete: Restrict)
+  approver users? @relation("external_trainings_approver", fields: [approved_by], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([approved_by])
+}
+
+model internal_trainings {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  user_id            String                  @db.Uuid
+  training_name      String                  @db.VarChar(255)
+  type               training_type_enum
+  start_date         DateTime                @db.Date
+  end_date           DateTime                @db.Date
+  hours              Decimal                 @db.Decimal(6, 1)
+  institution        String                  @db.VarChar(255)
+  certificate_status certificate_status_enum @default(NOT_SUBMITTED)
+  certificate_file   String?                 @db.VarChar(500)
+  credits            Decimal?                @db.Decimal(4, 1)
+  created_at         DateTime                @default(now())
+  updated_at         DateTime                @updatedAt
+
+  user users @relation("internal_trainings_user", fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+}
+
+model internal_lectures {
+  id                    String             @id @default(uuid()) @db.Uuid
+  user_id               String             @db.Uuid
+  lecture_name          String             @db.VarChar(255)
+  type                  training_type_enum
+  start_date            DateTime           @db.Date
+  end_date              DateTime           @db.Date
+  hours                 Decimal            @db.Decimal(6, 1)
+  department_instructor String             @db.VarChar(255)
+  credits               Decimal?           @db.Decimal(4, 1)
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+
+  user users @relation("internal_lectures_user", fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+}
+
+model certifications {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  cert_name     String   @db.VarChar(255)
+  grade         String   @db.VarChar(100)
+  acquired_date DateTime @db.Date
+  credits       Decimal? @db.Decimal(4, 1)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  user users @relation("certifications_user", fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+}
