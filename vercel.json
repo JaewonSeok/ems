@@ -1,6 +1,6 @@
 ﻿{
   "rewrites": [
     { "source": "/api/(.*)", "destination": "https://ems-9j17.onrender.com/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/client/index.html" }
   ]
 }
