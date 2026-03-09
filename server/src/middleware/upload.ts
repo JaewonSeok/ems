@@ -10,8 +10,12 @@ const uploadRootDir = path.resolve(process.cwd(), process.env.UPLOAD_DIR || "./u
 const externalTrainingDir = path.join(uploadRootDir, "external-trainings");
 const internalTrainingDir = path.join(uploadRootDir, "internal-trainings");
 
-fs.mkdirSync(externalTrainingDir, { recursive: true });
-fs.mkdirSync(internalTrainingDir, { recursive: true });
+try {
+  fs.mkdirSync(externalTrainingDir, { recursive: true });
+  fs.mkdirSync(internalTrainingDir, { recursive: true });
+} catch {
+  // Serverless 환경(읽기 전용 /var/task)에서는 UPLOAD_DIR을 /tmp/uploads로 설정
+}
 
 const allowedMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
