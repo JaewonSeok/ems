@@ -1,4 +1,4 @@
-import { Prisma, role_enum } from "@prisma/client";
+import { Prisma, position_title_enum, role_enum } from "@prisma/client";
 import { Response } from "express";
 import XLSX from "xlsx";
 import { prisma } from "../config/prisma";
@@ -33,6 +33,22 @@ function parseRole(value: unknown) {
   return value;
 }
 
+const VALID_POSITION_TITLES = [
+  position_title_enum.팀장,
+  position_title_enum.실장,
+  position_title_enum.부문장,
+  position_title_enum.본부장
+] as const;
+
+function parsePositionTitle(value: unknown): position_title_enum | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+  if (!VALID_POSITION_TITLES.includes(normalized as position_title_enum)) {
+    throw new ValidationError("유효하지 않은 직책입니다. (팀장/실장/부문장/본부장 중 선택)");
+  }
+  return normalized as position_title_enum;
+}
+
 function mapUser(record: {
   id: string;
   email: string;
@@ -41,6 +57,7 @@ function mapUser(record: {
   department: string;
   team: string;
   role: role_enum;
+  position_title: position_title_enum | null;
   is_first_login: boolean;
   is_active: boolean;
   created_at: Date;
@@ -54,6 +71,7 @@ function mapUser(record: {
     department: record.department,
     team: record.team,
     role: record.role,
+    position_title: record.position_title ?? null,
     is_first_login: record.is_first_login,
     is_active: record.is_active,
     created_at: record.created_at.toISOString(),
@@ -180,6 +198,7 @@ export async function createUser(req: AuthenticatedRequest, res: Response) {
     const department = parseRequiredString(body.department, "department", 100);
     const team = parseRequiredString(body.team, "team", 100);
     const role = parseRole(body.role);
+    const position_title = parsePositionTitle(body.position_title);
 
     const passwordHash = await hashPassword(employee_id);
 
@@ -191,6 +210,7 @@ export async function createUser(req: AuthenticatedRequest, res: Response) {
         department,
         team,
         role,
+        position_title,
         password_hash: passwordHash,
         is_first_login: true,
         is_active: true
@@ -261,6 +281,10 @@ export async function updateUser(req: AuthenticatedRequest, res: Response) {
         }
       }
       updateData.role = nextRole;
+    }
+
+    if (body.position_title !== undefined) {
+      updateData.position_title = parsePositionTitle(body.position_title);
     }
 
     const updated = await prisma.users.update({
@@ -385,7 +409,7 @@ export async function resetPassword(req: AuthenticatedRequest, res: Response) {
 export async function downloadUserTemplate(_req: AuthenticatedRequest, res: Response) {
   try {
     const workbook = XLSX.utils.book_new();
-    const rows = [{ 이름: "", 이메일: "", 사번: "", 부서: "", 팀: "", "역할(ADMIN/USER)": "USER" }];
+    const rows = [{ 이름: "", 이메일: "", 사번: "", 부서: "", 팀: "", "역할(ADMIN/USER)": "USER", "직책(팀장/실장/부문장/본부장)": "" }];
     const worksheet = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(workbook, worksheet, "UsersTemplate");
 
@@ -409,6 +433,7 @@ type ParsedBulkUser = {
   department: string;
   team: string;
   role: role_enum;
+  position_title: position_title_enum | null;
 };
 
 type FailedBulkUser = {
@@ -439,6 +464,7 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
     const matrix = XLSX.utils.sheet_to_json<Array<unknown>>(sheet, { header: 1, defval: "" });
     const headers = (matrix[0] || []).map((cell) => normalizeCell(cell));
     const roleHeader = "역할(ADMIN/USER)";
+    const positionHeader = "직책(팀장/실장/부문장/본부장)";
     const requiredHeaders = ["이름", "이메일", "사번", "부서", "팀", roleHeader];
 
     for (const header of requiredHeaders) {
@@ -464,10 +490,13 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
       const department = normalizeCell(row[headerIndex["부서"]]);
       const team = normalizeCell(row[headerIndex["팀"]]);
       const roleRaw = normalizeCell(row[headerIndex[roleHeader]]).toUpperCase();
+      const positionRaw = positionHeader in headerIndex ? normalizeCell(row[headerIndex[positionHeader]]) : "";
 
       if (!name && !email && !employee_id && !department && !team && !roleRaw) {
         continue;
       }
+
+      let position_title: position_title_enum | null = null;
 
       try {
         parseRequiredString(name, "name", 100);
@@ -475,6 +504,7 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
         parseRequiredString(employee_id, "employee_id", 50);
         parseRequiredString(department, "department", 100);
         parseRequiredString(team, "team", 100);
+        position_title = parsePositionTitle(positionRaw);
       } catch (validationError) {
         failed.push({ row: rowNumber, message: validationError instanceof Error ? validationError.message : "Invalid row" });
         continue;
@@ -510,7 +540,8 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
         employee_id,
         department,
         team,
-        role: roleRaw as role_enum
+        role: roleRaw as role_enum,
+        position_title
       });
     }
 
@@ -559,6 +590,7 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
             department: candidate.department,
             team: candidate.team,
             role: candidate.role,
+            position_title: candidate.position_title,
             password_hash: passwordHash,
             is_first_login: true,
             is_active: true

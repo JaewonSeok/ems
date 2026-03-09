@@ -181,10 +181,13 @@ export async function googleCallback(req: Request, res: Response) {
       accessToken,
       refreshToken,
       role: user.role,
-      firstLogin: String(user.is_first_login),
       userId: user.id,
       email: user.email,
-      name: user.name
+      name: user.name,
+      employee_id: user.employee_id,
+      department: user.department,
+      team: user.team,
+      position_title: user.position_title ?? ""
     });
 
     return res.redirect(`${frontendUrl}/#/auth/google/callback?${params.toString()}`);

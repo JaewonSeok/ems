@@ -28,19 +28,27 @@ enum approval_status_enum {
   REJECTED
 }
 
+enum position_title_enum {
+  팀장
+  실장
+  부문장
+  본부장
+}
+
 model users {
-  id             String    @id @default(uuid()) @db.Uuid
-  email          String    @unique @db.VarChar(255)
-  password_hash  String    @db.VarChar(255)
-  employee_id    String    @unique @db.VarChar(50)
-  name           String    @db.VarChar(100)
-  department     String    @db.VarChar(100)
-  team           String    @db.VarChar(100)
+  id             String               @id @default(uuid()) @db.Uuid
+  email          String               @unique @db.VarChar(255)
+  password_hash  String               @db.VarChar(255)
+  employee_id    String               @unique @db.VarChar(50)
+  name           String               @db.VarChar(100)
+  department     String               @db.VarChar(100)
+  team           String               @db.VarChar(100)
   role           role_enum
-  is_first_login Boolean   @default(true)
-  is_active      Boolean   @default(true)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  position_title position_title_enum?
+  is_first_login Boolean              @default(true)
+  is_active      Boolean              @default(true)
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
 
   external_training_items external_trainings[] @relation("external_trainings_user")
   internal_training_items internal_trainings[] @relation("internal_trainings_user")

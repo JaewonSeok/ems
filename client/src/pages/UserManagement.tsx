@@ -8,7 +8,7 @@ import {
   resetUserPassword,
   updateUser
 } from "../api/users";
-import { ManagedUser, UserBulkUploadResult, UserFormPayload, UserRole, UserStatusFilter } from "../types/userManagement";
+import { ManagedUser, PositionTitle, UserBulkUploadResult, UserFormPayload, UserRole, UserStatusFilter } from "../types/userManagement";
 
 const PAGE_LIMIT = 20;
 
@@ -21,6 +21,7 @@ type FormState = {
   department: string;
   team: string;
   role: UserRole;
+  position_title: PositionTitle | "";
 };
 
 const initialFormState: FormState = {
@@ -29,7 +30,8 @@ const initialFormState: FormState = {
   employee_id: "",
   department: "",
   team: "",
-  role: "USER"
+  role: "USER",
+  position_title: ""
 };
 
 function getErrorMessage(error: unknown) {
@@ -104,7 +106,8 @@ function validateForm(state: FormState): UserFormPayload {
     employee_id: employeeId,
     department,
     team,
-    role: state.role
+    role: state.role,
+    position_title: state.position_title
   };
 }
 
@@ -219,7 +222,8 @@ export default function UserManagement() {
       employee_id: user.employee_id,
       department: user.department,
       team: user.team,
-      role: user.role
+      role: user.role,
+      position_title: user.position_title ?? ""
     });
     setFormOpen(true);
   }
@@ -456,7 +460,7 @@ export default function UserManagement() {
         </article>
       ) : (
         <article className="rounded-xl border border-slate-200 bg-white p-4 overflow-auto">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left">
                 <th className="py-2 pr-3">이름</th>
@@ -464,6 +468,7 @@ export default function UserManagement() {
                 <th className="py-2 pr-3">사번</th>
                 <th className="py-2 pr-3">부서</th>
                 <th className="py-2 pr-3">팀</th>
+                <th className="py-2 pr-3">직책</th>
                 <th className="py-2 pr-3">역할</th>
                 <th className="py-2 pr-3">상태</th>
                 <th className="py-2 pr-3">관리</th>
@@ -472,7 +477,7 @@ export default function UserManagement() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-500">
                     등록된 사용자가 없습니다.
                   </td>
                 </tr>
@@ -484,6 +489,7 @@ export default function UserManagement() {
                     <td className="py-2 pr-3">{item.employee_id}</td>
                     <td className="py-2 pr-3">{item.department}</td>
                     <td className="py-2 pr-3">{item.team}</td>
+                    <td className="py-2 pr-3">{item.position_title ?? "-"}</td>
                     <td className="py-2 pr-3">{item.role}</td>
                     <td className="py-2 pr-3">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusBadgeClass(item.is_active)}`}>
@@ -632,6 +638,24 @@ export default function UserManagement() {
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                   required
                 />
+              </div>
+
+              <div>
+                <label htmlFor="user-position-title" className="mb-1 block text-sm font-medium">
+                  직책
+                </label>
+                <select
+                  id="user-position-title"
+                  value={formState.position_title}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, position_title: event.target.value as PositionTitle | "" }))}
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">없음 (일반 직원)</option>
+                  <option value="팀장">팀장</option>
+                  <option value="실장">실장</option>
+                  <option value="부문장">부문장</option>
+                  <option value="본부장">본부장</option>
+                </select>
               </div>
 
               <div>

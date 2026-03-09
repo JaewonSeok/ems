@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
-import { AuthUser, UserRole } from "../types/auth";
+import { AuthUser, PositionTitle, UserRole } from "../types/auth";
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -22,24 +22,24 @@ export default function GoogleCallback() {
     const userId = params.get("userId") ?? "";
     const email = params.get("email") ?? "";
     const name = params.get("name") ?? "";
+    const employee_id = params.get("employee_id") ?? "";
+    const department = params.get("department") ?? "";
+    const team = params.get("team") ?? "";
+    const positionTitleRaw = params.get("position_title") ?? "";
 
     if (!accessToken || !refreshToken) {
       navigate("/login", { replace: true });
       return;
     }
 
-    const user: AuthUser = {
-      id: userId,
-      email,
-      name,
-      role: role ?? "USER",
-      employee_id: "",
-      department: "",
-      team: "",
-    };
+    const validPositions: PositionTitle[] = ["팀장", "실장", "부문장", "본부장"];
+    const position_title = validPositions.includes(positionTitleRaw as PositionTitle)
+      ? (positionTitleRaw as PositionTitle)
+      : null;
 
-    // Google OAuth 사용자는 비밀번호가 없으므로 firstLogin을 false로 처리
-    setSession({ accessToken, refreshToken, firstLogin: false, user });
+    const user: AuthUser = { id: userId, email, name, role: role ?? "USER", employee_id, department, team, position_title };
+
+    setSession({ accessToken, refreshToken, user });
 
     if (user.role === "ADMIN") {
       navigate("/dashboard", { replace: true });

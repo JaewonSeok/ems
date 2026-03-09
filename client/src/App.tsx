@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Login from "./pages/Login";
-import ChangePassword from "./pages/ChangePassword";
 import GoogleCallback from "./pages/GoogleCallback";
 import Dashboard from "./pages/Dashboard";
 import ExternalTraining from "./pages/ExternalTraining";
@@ -13,6 +12,7 @@ import Statistics from "./pages/Statistics";
 import AllRecords from "./pages/AllRecords";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
+import TeamRecords from "./pages/TeamRecords";
 
 export default function App() {
   return (
@@ -20,14 +20,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/google/callback" element={<GoogleCallback />} />
-      <Route
-        path="/change-password"
-        element={
-          <ProtectedRoute>
-            <ChangePassword />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/change-password" element={<Navigate to="/" replace />} />
 
       <Route
         element={
@@ -73,6 +66,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/team-records" element={<TeamRecords />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />

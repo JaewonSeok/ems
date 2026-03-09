@@ -2,17 +2,19 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logoutRequest } from "../../api/auth";
 import { useAuthStore } from "../../store/authStore";
 
-const navItems = [
+type NavItem = { to: string; label: string; adminOnly?: boolean; positionOnly?: boolean };
+
+const navItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", adminOnly: true },
   { to: "/external-training", label: "External Training" },
   { to: "/internal-training", label: "Internal Training" },
   { to: "/internal-lecture", label: "Internal Lecture" },
   { to: "/certification", label: "Certification" },
   { to: "/statistics", label: "Statistics" },
+  { to: "/team-records", label: "소속 직원 교육현황", positionOnly: true },
   { to: "/all-records", label: "All Records", adminOnly: true },
   { to: "/user-management", label: "User Management", adminOnly: true },
-  { to: "/bulk-upload", label: "Bulk Upload", adminOnly: true },
-  { to: "/change-password", label: "Change Password" }
+  { to: "/bulk-upload", label: "Bulk Upload", adminOnly: true }
 ];
 
 export default function MainLayout() {
@@ -20,6 +22,7 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const { clearSession, user } = useAuthStore();
   const isAdmin = user?.role === "ADMIN";
+  const hasPosition = Boolean(user?.position_title);
 
   async function onLogout() {
     try {
@@ -39,7 +42,7 @@ export default function MainLayout() {
         <p className="text-xs text-slate-300 mb-4">{user?.name} ({user?.role})</p>
 
         <nav className="space-y-2">
-          {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
+          {navItems.filter((item) => (!item.adminOnly || isAdmin) && (!item.positionOnly || hasPosition || isAdmin)).map((item) => {
             const isActive = location.pathname === item.to;
 
             return (

@@ -10,6 +10,7 @@ import externalTrainingRoutes from "./routes/external-trainings.routes";
 import internalLectureRoutes from "./routes/internal-lectures.routes";
 import internalTrainingRoutes from "./routes/internal-trainings.routes";
 import statisticsRoutes from "./routes/statistics.routes";
+import teamRecordsRoutes from "./routes/team-records.routes";
 import usersRoutes from "./routes/users.routes";
 
 dotenv.config();
@@ -42,5 +43,6 @@ app.use("/api/internal-lectures", internalLectureRoutes);
 app.use("/api/certifications", certificationsRoutes);
 app.use("/api/bulk-upload", bulkUploadRoutes);
 app.use("/api/statistics", statisticsRoutes);
+app.use("/api/team-records", teamRecordsRoutes);
 
 export default app;

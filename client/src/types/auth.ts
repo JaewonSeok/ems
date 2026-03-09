@@ -1,4 +1,5 @@
 export type UserRole = "ADMIN" | "USER";
+export type PositionTitle = "팀장" | "실장" | "부문장" | "본부장";
 
 export interface AuthUser {
   id: string;
@@ -8,13 +9,13 @@ export interface AuthUser {
   department: string;
   team: string;
   role: UserRole;
+  position_title?: PositionTitle | null;
 }
 
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   role: UserRole;
-  firstLogin: boolean;
   user: AuthUser;
 }
 

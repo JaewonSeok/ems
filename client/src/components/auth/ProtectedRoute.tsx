@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 
 type ProtectedRouteProps = {
@@ -8,15 +8,10 @@ type ProtectedRouteProps = {
 };
 
 export default function ProtectedRoute({ adminOnly = false, children }: ProtectedRouteProps) {
-  const location = useLocation();
-  const { accessToken, firstLogin, user } = useAuthStore();
+  const { accessToken, user } = useAuthStore();
 
   if (!accessToken || !user) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (firstLogin && location.pathname !== "/change-password") {
-    return <Navigate to="/change-password" replace />;
   }
 
   if (adminOnly && user.role !== "ADMIN") {
