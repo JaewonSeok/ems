@@ -75,9 +75,16 @@ export async function refresh(req: Request, res: Response) {
 
     return res.status(200).json({ accessToken: nextAccessToken, refreshToken: nextRefreshToken });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("token") ? "Invalid refresh token" : "Internal server error";
-    const statusCode = message === "Invalid refresh token" ? 401 : 500;
-    return res.status(statusCode).json({ message });
+    const isJwtError = error instanceof Error && (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError" ||
+      error.name === "NotBeforeError" ||
+      error.message.includes("token")
+    );
+    if (isJwtError) {
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 
