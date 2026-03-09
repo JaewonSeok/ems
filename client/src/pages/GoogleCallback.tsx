@@ -19,7 +19,6 @@ export default function GoogleCallback() {
     const accessToken = params.get("accessToken");
     const refreshToken = params.get("refreshToken");
     const role = params.get("role") as UserRole | null;
-    const firstLogin = params.get("firstLogin") === "true";
     const userId = params.get("userId") ?? "";
     const email = params.get("email") ?? "";
     const name = params.get("name") ?? "";
@@ -39,11 +38,10 @@ export default function GoogleCallback() {
       team: "",
     };
 
-    setSession({ accessToken, refreshToken, firstLogin, user });
+    // Google OAuth 사용자는 비밀번호가 없으므로 firstLogin을 false로 처리
+    setSession({ accessToken, refreshToken, firstLogin: false, user });
 
-    if (firstLogin) {
-      navigate("/change-password", { replace: true });
-    } else if (user.role === "ADMIN") {
+    if (user.role === "ADMIN") {
       navigate("/dashboard", { replace: true });
     } else {
       navigate("/external-training", { replace: true });
