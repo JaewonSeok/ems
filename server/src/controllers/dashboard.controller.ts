@@ -68,7 +68,7 @@ export async function departmentSummary(_req: AuthenticatedRequest, res: Respons
 }
 
 export async function demoSeed(req: AuthenticatedRequest, res: Response) {
-  if (process.env.NODE_ENV === "production" || process.env.ENABLE_DASHBOARD_DEMO_SEED !== "true") {
+  if (process.env.ENABLE_DASHBOARD_DEMO_SEED !== "true") {
     return res.status(403).json({ message: "Dashboard demo seed is disabled" });
   }
 
