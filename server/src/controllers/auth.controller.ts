@@ -4,6 +4,9 @@ import { AuthenticatedRequest } from "../middleware/auth";
 import { createAccessToken, createRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { hashPassword, verifyPassword } from "../utils/password";
 
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+
 export async function login(req: Request, res: Response) {
   try {
     const { email, password } = req.body as { email?: string; password?: string };
@@ -80,6 +83,115 @@ export async function refresh(req: Request, res: Response) {
 
 export async function logout(_req: Request, res: Response) {
   return res.status(200).json({ message: "Logged out" });
+}
+
+export function googleLogin(_req: Request, res: Response) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (!clientId || !redirectUri) {
+    return res.status(500).json({ message: "Google OAuth is not configured" });
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    access_type: "offline",
+    prompt: "select_account"
+  });
+
+  return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+}
+
+export async function googleCallback(req: Request, res: Response) {
+  const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
+  const loginRedirect = `${frontendUrl}/#/login`;
+
+  const redirectError = (error: string) =>
+    res.redirect(`${loginRedirect}?error=${encodeURIComponent(error)}`);
+
+  try {
+    const { code, error } = req.query as { code?: string; error?: string };
+
+    if (error || !code) {
+      return redirectError(error || "oauth_cancelled");
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      return redirectError("server_misconfigured");
+    }
+
+    // Exchange code for tokens
+    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code"
+      }).toString()
+    });
+
+    if (!tokenRes.ok) {
+      console.error("Google token exchange failed:", await tokenRes.text());
+      return redirectError("token_exchange_failed");
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token?: string };
+
+    if (!tokenData.access_token) {
+      return redirectError("token_exchange_failed");
+    }
+
+    // Fetch user info
+    const userInfoRes = await fetch(GOOGLE_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` }
+    });
+
+    if (!userInfoRes.ok) {
+      console.error("Google userinfo fetch failed:", await userInfoRes.text());
+      return redirectError("userinfo_fetch_failed");
+    }
+
+    const googleUser = (await userInfoRes.json()) as { email?: string; name?: string };
+
+    if (!googleUser.email) {
+      return redirectError("userinfo_fetch_failed");
+    }
+
+    // Find user in DB
+    const user = await prisma.users.findUnique({ where: { email: googleUser.email } });
+
+    if (!user || !user.is_active) {
+      return redirectError("user_not_found");
+    }
+
+    const accessToken = createAccessToken({ id: user.id, email: user.email, role: user.role });
+    const refreshToken = createRefreshToken({ id: user.id, email: user.email, role: user.role });
+
+    const params = new URLSearchParams({
+      accessToken,
+      refreshToken,
+      role: user.role,
+      firstLogin: String(user.is_first_login),
+      userId: user.id,
+      email: user.email,
+      name: user.name
+    });
+
+    return res.redirect(`${frontendUrl}/#/auth/google/callback?${params.toString()}`);
+  } catch (err) {
+    console.error("googleCallback error:", err);
+    return redirectError("server_error");
+  }
 }
 
 export async function changePassword(req: AuthenticatedRequest, res: Response) {

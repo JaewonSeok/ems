@@ -3,6 +3,7 @@ import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
+import GoogleCallback from "./pages/GoogleCallback";
 import Dashboard from "./pages/Dashboard";
 import ExternalTraining from "./pages/ExternalTraining";
 import InternalTraining from "./pages/InternalTraining";
@@ -18,6 +19,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/google/callback" element={<GoogleCallback />} />
       <Route
         path="/change-password"
         element={
