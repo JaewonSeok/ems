@@ -1,8 +1,9 @@
 import axios from "axios";
 import { useAuthStore } from "../store/authStore";
 
-// ✅ /api 까지 포함해서 통일
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? "https://ems-9j17.onrender.com/api";
+// Vercel 배포: 동일 도메인이므로 /api (상대경로)
+// 로컬 개발: vite.config.ts 프록시가 /api → localhost:4000 으로 처리
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 const http = axios.create({ baseURL });
 

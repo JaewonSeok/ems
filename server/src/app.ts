@@ -17,10 +17,11 @@ dotenv.config();
 
 const app = express();
 
-// 간단한 CORS 설정
+// CORS 설정 (CORS_ORIGIN 환경변수로 제어, 미설정 시 동일 도메인 허용)
+const corsOrigin = process.env.CORS_ORIGIN || "https://ems-rsup.vercel.app";
 app.use(
   cors({
-    origin: "https://ems-rsup.vercel.app",
+    origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,

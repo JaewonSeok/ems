@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://ems-9j17.onrender.com/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function getGoogleErrorMessage(error: string | null): string | null {
   if (!error) return null;

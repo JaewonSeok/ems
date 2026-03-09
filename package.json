@@ -1,0 +1,8 @@
+{
+  "name": "ems",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "vercel-build": "cd server && npm install && npx prisma generate && cd ../client && npm install && npm run build"
+  }
+}
