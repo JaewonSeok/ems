@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(npx prisma:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(gh repo:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pg_dump:*)",
+      "Bash(where:*)",
+      "Bash(\"C:/Program Files/PostgreSQL/18/bin/pg_dump.exe\":*)",
+      "Bash(\"C:/Program Files/PostgreSQL/18/bin/pg_restore.exe\":*)",
+      "Bash(\"C:/Program Files/PostgreSQL/18/bin/psql.exe\":*)",
+      "Bash(vercel:*)",
+      "Bash(npm install:*)",
+      "Bash(printf:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(vercel env:*)"
     ]
   }
 }

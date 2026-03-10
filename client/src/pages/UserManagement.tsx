@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
-  bulkUploadUsers,
+  UserBulkRowInput,
+  bulkUploadUserRows,
   createUser,
   deactivateUser,
   downloadUserTemplate,
@@ -9,6 +11,55 @@ import {
   updateUser
 } from "../api/users";
 import { ManagedUser, PositionTitle, UserBulkUploadResult, UserFormPayload, UserRole, UserStatusFilter } from "../types/userManagement";
+
+const BULK_CHUNK_SIZE = 50;
+
+async function parseExcelFile(file: File): Promise<UserBulkRowInput[]> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+  if (!sheet) {
+    throw new Error("워크시트가 비어 있습니다.");
+  }
+
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+  const headers = ((matrix[0] as unknown[]) || []).map((c) => String(c ?? "").trim());
+
+  const requiredHeaders = ["이름", "이메일", "사번", "부서", "팀", "역할(ADMIN/USER)"];
+  for (const h of requiredHeaders) {
+    if (!headers.includes(h)) {
+      throw new Error(`필수 헤더 누락: ${h}`);
+    }
+  }
+
+  const idx: Record<string, number> = Object.fromEntries(headers.map((h, i) => [h, i]));
+  const roleHeader = "역할(ADMIN/USER)";
+  const positionHeader = "직책(팀장/실장/부문장/본부장)";
+
+  const rows: UserBulkRowInput[] = [];
+
+  for (let i = 1; i < matrix.length; i++) {
+    const row = (matrix[i] as unknown[]) || [];
+    const get = (key: string) => String(row[idx[key]] ?? "").trim();
+
+    const name = get("이름");
+    const email = get("이메일").toLowerCase();
+    const employee_id = get("사번");
+    const department = get("부서");
+    const team = get("팀");
+    const role = get(roleHeader).toUpperCase();
+    const position_title = positionHeader in idx ? get(positionHeader) : "";
+
+    if (!name && !email && !employee_id && !department && !team && !role) {
+      continue;
+    }
+
+    rows.push({ row: i + 1, name, email, employee_id, department, team, role, position_title });
+  }
+
+  return rows;
+}
 
 const PAGE_LIMIT = 20;
 
@@ -142,6 +193,7 @@ export default function UserManagement() {
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<UserBulkUploadResult | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ processed: number; total: number } | null>(null);
 
   const [reloadToken, setReloadToken] = useState(0);
   const refreshList = useCallback(() => {
@@ -326,16 +378,54 @@ export default function UserManagement() {
     setBulkUploading(true);
     setBulkError(null);
     setBulkResult(null);
+    setBulkProgress(null);
 
     try {
-      const result = await bulkUploadUsers(bulkFile);
-      setBulkResult(result);
+      const allRows = await parseExcelFile(bulkFile);
+
+      if (allRows.length === 0) {
+        setBulkResult({ createdCount: 0, failedCount: 0, failedRows: [] });
+        setBulkFile(null);
+        return;
+      }
+
+      const chunks: UserBulkRowInput[][] = [];
+      for (let i = 0; i < allRows.length; i += BULK_CHUNK_SIZE) {
+        chunks.push(allRows.slice(i, i + BULK_CHUNK_SIZE));
+      }
+
+      let totalCreated = 0;
+      const allFailedRows: Array<{ row: number; message: string }> = [];
+      let processed = 0;
+
+      setBulkProgress({ processed: 0, total: allRows.length });
+
+      for (const chunk of chunks) {
+        try {
+          const result = await bulkUploadUserRows(chunk);
+          totalCreated += result.createdCount;
+          allFailedRows.push(...result.failedRows);
+        } catch {
+          for (const r of chunk) {
+            allFailedRows.push({ row: r.row, message: "서버 오류로 처리 실패" });
+          }
+        }
+        processed += chunk.length;
+        setBulkProgress({ processed, total: allRows.length });
+      }
+
+      setBulkResult({
+        createdCount: totalCreated,
+        failedCount: allFailedRows.length,
+        failedRows: allFailedRows.sort((a, b) => a.row - b.row)
+      });
       setBulkFile(null);
       refreshList();
     } catch (uploadError) {
       setBulkError(getErrorMessage(uploadError));
     } finally {
       setBulkUploading(false);
+      setBulkProgress(null);
     }
   }
 
@@ -412,11 +502,30 @@ export default function UserManagement() {
             disabled={bulkUploading}
             className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
           >
-            {bulkUploading ? "업로드 중..." : "📤 일괄 업로드"}
+            {bulkUploading
+              ? bulkProgress
+                ? `처리 중... ${bulkProgress.processed}/${bulkProgress.total}건`
+                : "파일 분석 중..."
+              : "📤 일괄 업로드"}
           </button>
         </div>
 
-        {bulkFile && <p className="text-sm text-slate-600">선택 파일: {bulkFile.name}</p>}
+        {bulkProgress && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-slate-600">
+              <span>{bulkProgress.processed}/{bulkProgress.total}건 처리 중...</span>
+              <span>{Math.round((bulkProgress.processed / bulkProgress.total) * 100)}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-2 rounded-full bg-slate-900 transition-all duration-300"
+                style={{ width: `${(bulkProgress.processed / bulkProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {bulkFile && !bulkUploading && <p className="text-sm text-slate-600">선택 파일: {bulkFile.name}</p>}
         {bulkError && <p className="text-sm text-rose-700">{bulkError}</p>}
 
         {bulkResult && (

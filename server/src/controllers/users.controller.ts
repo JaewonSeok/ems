@@ -445,6 +445,158 @@ function normalizeCell(value: unknown) {
   return String(value ?? "").trim();
 }
 
+type BulkRowInput = {
+  row: number;
+  name: string;
+  email: string;
+  employee_id: string;
+  department: string;
+  team: string;
+  role: string;
+  position_title: string;
+};
+
+async function insertCandidates(candidates: ParsedBulkUser[], failed: FailedBulkUser[]) {
+  const [existingByEmail, existingByEmployeeId] = await Promise.all([
+    prisma.users.findMany({
+      where: { email: { in: candidates.map((c) => c.email) } },
+      select: { email: true }
+    }),
+    prisma.users.findMany({
+      where: { employee_id: { in: candidates.map((c) => c.employee_id) } },
+      select: { employee_id: true }
+    })
+  ]);
+
+  const existingEmailSet = new Set(existingByEmail.map((row) => row.email.toLowerCase()));
+  const existingEmployeeIdSet = new Set(existingByEmployeeId.map((row) => row.employee_id));
+
+  const creatable = candidates.filter((candidate) => {
+    if (existingEmailSet.has(candidate.email)) {
+      failed.push({ row: candidate.row, message: "email already exists" });
+      return false;
+    }
+    if (existingEmployeeIdSet.has(candidate.employee_id)) {
+      failed.push({ row: candidate.row, message: "employee_id already exists" });
+      return false;
+    }
+    return true;
+  });
+
+  if (creatable.length === 0) {
+    return 0;
+  }
+
+  const creatableWithHash = await Promise.all(
+    creatable.map(async (candidate) => ({
+      ...candidate,
+      passwordHash: await hashPassword(candidate.employee_id)
+    }))
+  );
+
+  const { count } = await prisma.users.createMany({
+    data: creatableWithHash.map((c) => ({
+      email: c.email,
+      employee_id: c.employee_id,
+      name: c.name,
+      department: c.department,
+      team: c.team,
+      role: c.role,
+      position_title: c.position_title,
+      password_hash: c.passwordHash,
+      is_first_login: true,
+      is_active: true
+    })),
+    skipDuplicates: true
+  });
+
+  return count;
+}
+
+export async function bulkUploadUserRows(req: AuthenticatedRequest, res: Response) {
+  try {
+    const body = req.body as { rows?: unknown[] };
+
+    if (!Array.isArray(body.rows) || body.rows.length === 0) {
+      return res.status(200).json({ createdCount: 0, failedCount: 0, failedRows: [] });
+    }
+
+    const failed: FailedBulkUser[] = [];
+    const candidates: ParsedBulkUser[] = [];
+    const seenEmails = new Map<string, number>();
+    const seenEmployeeIds = new Map<string, number>();
+
+    for (const item of body.rows) {
+      if (typeof item !== "object" || item === null) {
+        continue;
+      }
+
+      const r = item as Record<string, unknown>;
+      const rowNumber = Number(r.row) || 0;
+      const name = normalizeCell(r.name);
+      const email = normalizeCell(r.email).toLowerCase();
+      const employee_id = normalizeCell(r.employee_id);
+      const department = normalizeCell(r.department);
+      const team = normalizeCell(r.team);
+      const roleRaw = normalizeCell(r.role).toUpperCase();
+      const positionRaw = normalizeCell(r.position_title);
+
+      let position_title: position_title_enum | null = null;
+
+      try {
+        parseRequiredString(name, "name", 100);
+        parseRequiredString(email, "email", 255);
+        parseRequiredString(employee_id, "employee_id", 50);
+        parseRequiredString(department, "department", 100);
+        parseRequiredString(team, "team", 100);
+        position_title = parsePositionTitle(positionRaw);
+      } catch (validationError) {
+        failed.push({ row: rowNumber, message: validationError instanceof Error ? validationError.message : "Invalid row" });
+        continue;
+      }
+
+      if (!isValidEmail(email)) {
+        failed.push({ row: rowNumber, message: "email format is invalid" });
+        continue;
+      }
+
+      if (roleRaw !== role_enum.ADMIN && roleRaw !== role_enum.USER) {
+        failed.push({ row: rowNumber, message: "role must be ADMIN or USER" });
+        continue;
+      }
+
+      if (seenEmails.has(email)) {
+        failed.push({ row: rowNumber, message: `duplicate email in chunk (first row: ${seenEmails.get(email)})` });
+        continue;
+      }
+
+      if (seenEmployeeIds.has(employee_id)) {
+        failed.push({ row: rowNumber, message: `duplicate employee_id in chunk (first row: ${seenEmployeeIds.get(employee_id)})` });
+        continue;
+      }
+
+      seenEmails.set(email, rowNumber);
+      seenEmployeeIds.set(employee_id, rowNumber);
+      candidates.push({ row: rowNumber, name, email, employee_id, department, team, role: roleRaw as role_enum, position_title });
+    }
+
+    if (candidates.length === 0) {
+      return res.status(200).json({ createdCount: 0, failedCount: failed.length, failedRows: failed });
+    }
+
+    const createdCount = await insertCandidates(candidates, failed);
+
+    return res.status(200).json({
+      createdCount,
+      failedCount: failed.length,
+      failedRows: failed.sort((a, b) => a.row - b.row)
+    });
+  } catch (error) {
+    console.error("bulkUploadUserRows error:", error);
+    return res.status(500).json({ message: "Failed to bulk upload user rows" });
+  }
+}
+
 export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) {
   try {
     const file = req.file;
@@ -549,58 +701,7 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
       return res.status(200).json({ createdCount: 0, failedCount: failed.length, failedRows: failed });
     }
 
-    const [existingByEmail, existingByEmployeeId] = await Promise.all([
-      prisma.users.findMany({
-        where: { email: { in: candidates.map((candidate) => candidate.email) } },
-        select: { email: true }
-      }),
-      prisma.users.findMany({
-        where: { employee_id: { in: candidates.map((candidate) => candidate.employee_id) } },
-        select: { employee_id: true }
-      })
-    ]);
-
-    const existingEmailSet = new Set(existingByEmail.map((row) => row.email.toLowerCase()));
-    const existingEmployeeIdSet = new Set(existingByEmployeeId.map((row) => row.employee_id));
-
-    const creatable = candidates.filter((candidate) => {
-      if (existingEmailSet.has(candidate.email)) {
-        failed.push({ row: candidate.row, message: "email already exists" });
-        return false;
-      }
-
-      if (existingEmployeeIdSet.has(candidate.employee_id)) {
-        failed.push({ row: candidate.row, message: "employee_id already exists" });
-        return false;
-      }
-
-      return true;
-    });
-
-    // 모든 비밀번호를 병렬로 해싱 (직렬 대비 N배 빠름)
-    const creatableWithHash = await Promise.all(
-      creatable.map(async (candidate) => ({
-        ...candidate,
-        passwordHash: await hashPassword(candidate.employee_id)
-      }))
-    );
-
-    // 단일 bulk INSERT (개별 N회 INSERT 대신)
-    const { count: createdCount } = await prisma.users.createMany({
-      data: creatableWithHash.map((c) => ({
-        email: c.email,
-        employee_id: c.employee_id,
-        name: c.name,
-        department: c.department,
-        team: c.team,
-        role: c.role,
-        position_title: c.position_title,
-        password_hash: c.passwordHash,
-        is_first_login: true,
-        is_active: true
-      })),
-      skipDuplicates: true
-    });
+    const createdCount = await insertCandidates(candidates, failed);
 
     return res.status(200).json({
       createdCount,

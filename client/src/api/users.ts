@@ -56,6 +56,22 @@ export async function downloadUserTemplate() {
   };
 }
 
+export interface UserBulkRowInput {
+  row: number;
+  name: string;
+  email: string;
+  employee_id: string;
+  department: string;
+  team: string;
+  role: string;
+  position_title: string;
+}
+
+export async function bulkUploadUserRows(rows: UserBulkRowInput[]) {
+  const response = await http.post<UserBulkUploadResult>("/users/bulk-upload-rows", { rows });
+  return response.data;
+}
+
 export async function bulkUploadUsers(file: File) {
   const formData = new FormData();
   formData.append("file", file);
