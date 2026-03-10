@@ -5,7 +5,8 @@ import multer from "multer";
 import { NextFunction, Request, Response } from "express";
 import { readFile } from "fs/promises";
 
-const maxFileSize = Number(process.env.MAX_FILE_SIZE || 10 * 1024 * 1024);
+// Vercel 서버리스 request body 한도(4.5MB)를 고려하여 기본값을 4MB로 설정
+const maxFileSize = Number(process.env.MAX_FILE_SIZE || 4 * 1024 * 1024);
 const uploadRootDir = path.resolve(process.cwd(), process.env.UPLOAD_DIR || "./uploads");
 const externalTrainingDir = path.join(uploadRootDir, "external-trainings");
 const internalTrainingDir = path.join(uploadRootDir, "internal-trainings");

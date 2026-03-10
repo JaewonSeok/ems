@@ -20,7 +20,8 @@ import {
 } from "../types/externalTraining";
 
 const PAGE_LIMIT = 10;
-const MAX_CERTIFICATE_BYTES = 10 * 1024 * 1024;
+// Vercel 서버리스 함수의 request body 한도(4.5MB) 아래로 여유를 두어 설정
+const MAX_CERTIFICATE_BYTES = 4 * 1024 * 1024; // 4MB
 const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const ALLOWED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 
@@ -96,7 +97,7 @@ function hasAllowedExtension(fileName: string) {
 
 function validateCertificateFile(file: File) {
   if (file.size > MAX_CERTIFICATE_BYTES) {
-    throw new Error(`수료증 파일 크기는 ${MAX_CERTIFICATE_BYTES} bytes 이하여야 합니다.`);
+    throw new Error(`수료증 파일 크기는 4MB 이하여야 합니다. (현재 ${(file.size / 1024 / 1024).toFixed(1)}MB)`);
   }
 
   if (file.type && ALLOWED_MIME_TYPES.has(file.type)) {
@@ -108,6 +109,75 @@ function validateCertificateFile(file: File) {
   }
 
   throw new Error("수료증 파일은 PDF/JPG/PNG만 업로드할 수 있습니다.");
+}
+
+// JPEG/PNG 이미지를 Canvas로 압축한다. PDF는 그대로 반환.
+// 최대 2000px 리사이즈 + JPEG 품질 0.82 적용.
+async function compressImage(file: File): Promise<File> {
+  if (file.type === "application/pdf") {
+    return file;
+  }
+
+  const MAX_SIDE = 2000;
+  const QUALITY = 0.82;
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      let { width, height } = img;
+
+      // 이미 충분히 작으면 그대로 사용
+      if (width <= MAX_SIDE && height <= MAX_SIDE && file.size <= MAX_CERTIFICATE_BYTES) {
+        resolve(file);
+        return;
+      }
+
+      // 비율 유지 리사이즈
+      if (width >= height && width > MAX_SIDE) {
+        height = Math.round((height * MAX_SIDE) / width);
+        width = MAX_SIDE;
+      } else if (height > MAX_SIDE) {
+        width = Math.round((width * MAX_SIDE) / height);
+        height = MAX_SIDE;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("이미지 압축 중 오류가 발생했습니다."));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("이미지 압축 중 오류가 발생했습니다."));
+            return;
+          }
+          const compressedName = file.name.replace(/\.[^.]+$/, ".jpg");
+          resolve(new File([blob], compressedName, { type: "image/jpeg", lastModified: Date.now() }));
+        },
+        "image/jpeg",
+        QUALITY
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("이미지를 읽을 수 없습니다."));
+    };
+
+    img.src = url;
+  });
 }
 
 function buildFormPayload(form: FormState, admin: boolean): ExternalTrainingFormPayload {
@@ -394,7 +464,8 @@ export default function ExternalTraining() {
 
       if (formFile) {
         validateCertificateFile(formFile);
-        await uploadExternalTrainingCertificate(targetId, formFile);
+        const fileToUpload = await compressImage(formFile);
+        await uploadExternalTrainingCertificate(targetId, fileToUpload);
       }
 
       setFormOpen(false);
@@ -468,7 +539,8 @@ export default function ExternalTraining() {
 
     try {
       validateCertificateFile(file);
-      await uploadExternalTrainingCertificate(uploadTargetId, file);
+      const fileToUpload = await compressImage(file);
+      await uploadExternalTrainingCertificate(uploadTargetId, fileToUpload);
       refreshList();
     } catch (uploadError) {
       window.alert(getErrorMessage(uploadError));

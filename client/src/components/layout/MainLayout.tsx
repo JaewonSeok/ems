@@ -6,15 +6,15 @@ type NavItem = { to: string; label: string; adminOnly?: boolean; positionOnly?: 
 
 const navItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", adminOnly: true },
-  { to: "/external-training", label: "External Training" },
-  { to: "/internal-training", label: "Internal Training" },
-  { to: "/internal-lecture", label: "Internal Lecture" },
-  { to: "/certification", label: "Certification" },
-  { to: "/statistics", label: "Statistics" },
+  { to: "/external-training", label: "사외교육" },
+  { to: "/internal-training", label: "사내교육" },
+  { to: "/internal-lecture", label: "사내강의" },
+  { to: "/certification", label: "자격증" },
+  { to: "/statistics", label: "통계" },
   { to: "/team-records", label: "소속 직원 교육현황", positionOnly: true },
-  { to: "/all-records", label: "All Records", adminOnly: true },
-  { to: "/user-management", label: "User Management", adminOnly: true },
-  { to: "/bulk-upload", label: "Bulk Upload", adminOnly: true }
+  { to: "/all-records", label: "전체 이력 관리", adminOnly: true },
+  { to: "/user-management", label: "사용자 관리", adminOnly: true },
+  { to: "/bulk-upload", label: "엑셀 일괄 업로드", adminOnly: true }
 ];
 
 export default function MainLayout() {

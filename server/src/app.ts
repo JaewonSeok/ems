@@ -17,16 +17,20 @@ dotenv.config();
 
 const app = express();
 
-// CORS 설정 (CORS_ORIGIN 환경변수로 제어, 미설정 시 동일 도메인 허용)
-const corsOrigin = process.env.CORS_ORIGIN || "https://ems-rsup.vercel.app";
-app.use(
-  cors({
-    origin: corsOrigin,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+// CORS 설정
+// - 로컬 개발: CORS_ORIGIN=http://localhost:3001 (.env)
+// - Vercel 배포: 프론트엔드와 API가 동일 도메인이므로 CORS 불필요 → 환경변수 미설정 시 비활성화
+const corsOrigin = process.env.CORS_ORIGIN;
+if (corsOrigin) {
+  app.use(
+    cors({
+      origin: corsOrigin,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+      credentials: true,
+    })
+  );
+}
 
 app.use(express.json());
 
