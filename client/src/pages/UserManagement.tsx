@@ -12,7 +12,11 @@ import {
 } from "../api/users";
 import { ManagedUser, PositionTitle, UserBulkUploadResult, UserFormPayload, UserRole, UserStatusFilter } from "../types/userManagement";
 
-const BULK_CHUNK_SIZE = 50;
+const BULK_CHUNK_SIZE = 20;
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
 
 async function parseExcelFile(file: File): Promise<UserBulkRowInput[]> {
   const buffer = await file.arrayBuffer();
@@ -400,7 +404,8 @@ export default function UserManagement() {
 
       setBulkProgress({ processed: 0, total: allRows.length });
 
-      for (const chunk of chunks) {
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const chunk = chunks[ci];
         try {
           const result = await bulkUploadUserRows(chunk);
           totalCreated += result.createdCount;
@@ -412,6 +417,11 @@ export default function UserManagement() {
         }
         processed += chunk.length;
         setBulkProgress({ processed, total: allRows.length });
+
+        // 다음 청크가 있으면 1초 대기 (Connection Pool 해제 여유 시간)
+        if (ci < chunks.length - 1) {
+          await sleep(1000);
+        }
       }
 
       setBulkResult({
