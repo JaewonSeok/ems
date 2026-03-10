@@ -577,38 +577,30 @@ export async function bulkUploadUsers(req: AuthenticatedRequest, res: Response) 
       return true;
     });
 
-    let createdCount = 0;
+    // 모든 비밀번호를 병렬로 해싱 (직렬 대비 N배 빠름)
+    const creatableWithHash = await Promise.all(
+      creatable.map(async (candidate) => ({
+        ...candidate,
+        passwordHash: await hashPassword(candidate.employee_id)
+      }))
+    );
 
-    for (const candidate of creatable) {
-      try {
-        const passwordHash = await hashPassword(candidate.employee_id);
-        await prisma.users.create({
-          data: {
-            email: candidate.email,
-            employee_id: candidate.employee_id,
-            name: candidate.name,
-            department: candidate.department,
-            team: candidate.team,
-            role: candidate.role,
-            position_title: candidate.position_title,
-            password_hash: passwordHash,
-            is_first_login: true,
-            is_active: true
-          }
-        });
-        createdCount += 1;
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          const message = uniqueConstraintMessage(error);
-          if (message) {
-            failed.push({ row: candidate.row, message });
-            continue;
-          }
-        }
-
-        failed.push({ row: candidate.row, message: "Failed to create user" });
-      }
-    }
+    // 단일 bulk INSERT (개별 N회 INSERT 대신)
+    const { count: createdCount } = await prisma.users.createMany({
+      data: creatableWithHash.map((c) => ({
+        email: c.email,
+        employee_id: c.employee_id,
+        name: c.name,
+        department: c.department,
+        team: c.team,
+        role: c.role,
+        position_title: c.position_title,
+        password_hash: c.passwordHash,
+        is_first_login: true,
+        is_active: true
+      })),
+      skipDuplicates: true
+    });
 
     return res.status(200).json({
       createdCount,
