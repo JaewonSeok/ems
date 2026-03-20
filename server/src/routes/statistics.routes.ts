@@ -6,10 +6,13 @@ import {
   statisticsTopEmployees
 } from "../controllers/statistics.controller";
 import { authMiddleware } from "../middleware/auth";
+import { rbacMiddleware } from "../middleware/rbac";
+import { role_enum } from "@prisma/client";
 
 const statisticsRoutes = Router();
 
 statisticsRoutes.use(authMiddleware);
+statisticsRoutes.use(rbacMiddleware([role_enum.ADMIN]));
 statisticsRoutes.get("/overview", statisticsOverview);
 statisticsRoutes.get("/cost-trend", statisticsCostTrend);
 statisticsRoutes.get("/completion-rate", statisticsCompletionRate);

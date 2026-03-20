@@ -424,9 +424,11 @@ export default function InternalTraining() {
     <section className="space-y-4">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">사내교육</h2>
-        <button onClick={openCreateModal} className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
-          + 사내교육 등록
-        </button>
+        {isAdmin && (
+          <button onClick={openCreateModal} className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
+            + 사내교육 등록
+          </button>
+        )}
       </header>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -514,22 +516,26 @@ export default function InternalTraining() {
                         >
                           ⬇ 수료증 다운로드
                         </button>
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-xs"
-                          title="수정"
-                          disabled={rowActionLoadingId === item.id}
-                          onClick={() => openEditModal(item)}
-                        >
-                          ✏ 수정
-                        </button>
-                        <button
-                          className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
-                          title="삭제"
-                          disabled={rowActionLoadingId === item.id}
-                          onClick={() => void onDelete(item)}
-                        >
-                          🗑 삭제
-                        </button>
+                        {isAdmin && (
+                          <button
+                            className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            title="수정"
+                            disabled={rowActionLoadingId === item.id}
+                            onClick={() => openEditModal(item)}
+                          >
+                            ✏ 수정
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                            title="삭제"
+                            disabled={rowActionLoadingId === item.id}
+                            onClick={() => void onDelete(item)}
+                          >
+                            🗑 삭제
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

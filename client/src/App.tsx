@@ -13,6 +13,7 @@ import AllRecords from "./pages/AllRecords";
 import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 import TeamRecords from "./pages/TeamRecords";
+import MyCredits from "./pages/MyCredits";
 
 export default function App() {
   return (
@@ -41,7 +42,15 @@ export default function App() {
         <Route path="/internal-training" element={<InternalTraining />} />
         <Route path="/internal-lecture" element={<InternalLecture />} />
         <Route path="/certification" element={<Certification />} />
-        <Route path="/statistics" element={<Statistics />} />
+        <Route path="/my-credits" element={<MyCredits />} />
+        <Route
+          path="/statistics"
+          element={
+            <ProtectedRoute adminOnly>
+              <Statistics />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/all-records"
           element={

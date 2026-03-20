@@ -9,6 +9,7 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import externalTrainingRoutes from "./routes/external-trainings.routes";
 import internalLectureRoutes from "./routes/internal-lectures.routes";
 import internalTrainingRoutes from "./routes/internal-trainings.routes";
+import myCreditsRoutes from "./routes/my-credits.routes";
 import statisticsRoutes from "./routes/statistics.routes";
 import teamRecordsRoutes from "./routes/team-records.routes";
 import usersRoutes from "./routes/users.routes";
@@ -47,6 +48,7 @@ app.use("/api/internal-trainings", internalTrainingRoutes);
 app.use("/api/internal-lectures", internalLectureRoutes);
 app.use("/api/certifications", certificationsRoutes);
 app.use("/api/bulk-upload", bulkUploadRoutes);
+app.use("/api/my-credits", myCreditsRoutes);
 app.use("/api/statistics", statisticsRoutes);
 app.use("/api/team-records", teamRecordsRoutes);
 

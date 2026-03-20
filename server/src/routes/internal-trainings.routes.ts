@@ -19,9 +19,9 @@ internalTrainingRoutes.use(authMiddleware);
 
 internalTrainingRoutes.get("/", listInternalTrainings);
 internalTrainingRoutes.get("/users/options", rbacMiddleware([role_enum.ADMIN]), listInternalTrainingUserOptions);
-internalTrainingRoutes.post("/", createInternalTraining);
-internalTrainingRoutes.put("/:id", updateInternalTraining);
-internalTrainingRoutes.delete("/:id", deleteInternalTraining);
+internalTrainingRoutes.post("/", rbacMiddleware([role_enum.ADMIN]), createInternalTraining);
+internalTrainingRoutes.put("/:id", rbacMiddleware([role_enum.ADMIN]), updateInternalTraining);
+internalTrainingRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteInternalTraining);
 internalTrainingRoutes.post("/:id/certificate", internalTrainingCertificateUpload, uploadInternalTrainingCertificate);
 internalTrainingRoutes.get("/:id/certificate", downloadInternalTrainingCertificate);
 
