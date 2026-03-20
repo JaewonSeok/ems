@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { Prisma, role_enum, training_type_enum } from "@prisma/client";
+import { Prisma, approval_status_enum, certificate_status_enum, role_enum, training_type_enum } from "@prisma/client";
 import { Response } from "express";
 import { prisma } from "../config/prisma";
 import { AuthenticatedRequest } from "../middleware/auth";
@@ -437,6 +437,30 @@ export async function updateExternalTraining(req: AuthenticatedRequest, res: Res
         }
         updateData.credits = new Prisma.Decimal(credits);
       }
+    }
+
+    if (body.approval_status !== undefined && authUser.role === role_enum.ADMIN) {
+      const validApproval = ["PENDING", "APPROVED", "REJECTED"];
+      if (!validApproval.includes(String(body.approval_status))) {
+        return res.status(400).json({ message: "approval_status must be PENDING, APPROVED, or REJECTED" });
+      }
+      updateData.approval_status = body.approval_status as approval_status_enum;
+      if (body.approval_status !== "PENDING") {
+        updateData.approver = { connect: { id: authUser.id } };
+        updateData.approved_at = new Date();
+      } else {
+        updateData.approver = { disconnect: true };
+        updateData.approved_at = null;
+        updateData.approval_comment = null;
+      }
+    }
+
+    if (body.certificate_status !== undefined && authUser.role === role_enum.ADMIN) {
+      const validCert = ["SUBMITTED", "NOT_SUBMITTED"];
+      if (!validCert.includes(String(body.certificate_status))) {
+        return res.status(400).json({ message: "certificate_status must be SUBMITTED or NOT_SUBMITTED" });
+      }
+      updateData.certificate_status = body.certificate_status as certificate_status_enum;
     }
 
     const updated = await prisma.external_trainings.update({

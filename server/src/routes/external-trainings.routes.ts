@@ -21,7 +21,7 @@ externalTrainingRoutes.use(authMiddleware);
 
 externalTrainingRoutes.get("/", listExternalTrainings);
 externalTrainingRoutes.get("/users/options", rbacMiddleware([role_enum.ADMIN]), listExternalTrainingUserOptions);
-externalTrainingRoutes.post("/", rbacMiddleware([role_enum.ADMIN]), createExternalTraining);
+externalTrainingRoutes.post("/", createExternalTraining);
 externalTrainingRoutes.put("/:id", rbacMiddleware([role_enum.ADMIN]), updateExternalTraining);
 externalTrainingRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteExternalTraining);
 

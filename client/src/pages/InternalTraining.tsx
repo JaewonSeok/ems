@@ -27,6 +27,7 @@ type FormState = {
   hours: string;
   institution: string;
   credits: string;
+  certificate_status: string;
 };
 
 const initialFormState: FormState = {
@@ -37,7 +38,8 @@ const initialFormState: FormState = {
   end_date: "",
   hours: "",
   institution: "",
-  credits: ""
+  credits: "",
+  certificate_status: "NOT_SUBMITTED"
 };
 
 function getErrorMessage(error: unknown) {
@@ -92,7 +94,7 @@ function validateCertificateFile(file: File) {
   throw new Error("수료증 파일은 PDF/JPG/PNG만 업로드할 수 있습니다.");
 }
 
-function buildFormPayload(form: FormState, admin: boolean): InternalTrainingFormPayload {
+function buildFormPayload(form: FormState, admin: boolean, isEdit = false): InternalTrainingFormPayload {
   const trainingName = form.training_name.trim();
   const institution = form.institution.trim();
   const startDate = form.start_date.trim();
@@ -144,6 +146,9 @@ function buildFormPayload(form: FormState, admin: boolean): InternalTrainingForm
       throw new Error("ADMIN은 이름(사용자)을 선택해야 합니다.");
     }
     payload.user_id = userId;
+    if (isEdit) {
+      payload.certificate_status = form.certificate_status;
+    }
   }
 
   return payload;
@@ -302,7 +307,8 @@ export default function InternalTraining() {
       end_date: record.end_date,
       hours: String(record.hours),
       institution: record.institution,
-      credits: record.credits === null ? "" : String(record.credits)
+      credits: record.credits === null ? "" : String(record.credits),
+      certificate_status: record.certificate_status
     });
     setFormOpen(true);
   }
@@ -321,7 +327,7 @@ export default function InternalTraining() {
     setFormError(null);
 
     try {
-      const payload = buildFormPayload(formState, isAdmin);
+      const payload = buildFormPayload(formState, isAdmin, formMode === "edit");
       const isEdit = formMode === "edit" && editingRecord;
       let targetId: string;
 
@@ -681,6 +687,19 @@ export default function InternalTraining() {
                     className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                   />
                 </label>
+                {formMode === "edit" && (
+                  <label className="space-y-1">
+                    <span className="text-sm text-slate-700">수료증상태</span>
+                    <select
+                      value={formState.certificate_status}
+                      onChange={(event) => setFormState((prev) => ({ ...prev, certificate_status: event.target.value }))}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="NOT_SUBMITTED">NOT_SUBMITTED</option>
+                      <option value="SUBMITTED">SUBMITTED</option>
+                    </select>
+                  </label>
+                )}
               </div>
 
               <label className="space-y-1 block">

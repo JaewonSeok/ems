@@ -46,6 +46,8 @@ export interface ExternalTrainingFormPayload {
   cost: number | null;
   institution: string;
   credits: number | null;
+  approval_status?: string;
+  certificate_status?: string;
 }
 
 export interface ExternalTrainingUserOption {

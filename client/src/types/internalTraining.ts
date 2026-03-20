@@ -38,6 +38,7 @@ export interface InternalTrainingFormPayload {
   hours: number;
   institution: string;
   credits: number | null;
+  certificate_status?: string;
 }
 
 export interface InternalTrainingUserOption {
