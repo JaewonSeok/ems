@@ -113,7 +113,10 @@ export function googleLogin(_req: Request, res: Response) {
 }
 
 export async function googleCallback(req: Request, res: Response) {
-  const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
+  // CORS_ORIGIN이 설정된 경우(로컬 개발): 절대 URL 사용 ex) "http://localhost:5173"
+  // CORS_ORIGIN 미설정(Vercel 동일도메인 배포): 빈 문자열 → 상대경로 redirect
+  // "/login", "/auth/google/callback?..." 형태로 브라우저가 현재 도메인 기준으로 처리
+  const frontendUrl = process.env.CORS_ORIGIN ?? "";
   const loginRedirect = `${frontendUrl}/login`;
 
   const redirectError = (error: string) =>
