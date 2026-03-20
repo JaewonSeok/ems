@@ -6,9 +6,16 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 function getGoogleErrorMessage(error: string | null): string | null {
   if (!error) return null;
-  if (error === "user_not_found") return "등록되지 않은 계정입니다. 관리자에게 문의하세요.";
-  if (error === "google_login_failed") return "Google 로그인에 실패했습니다. 다시 시도해주세요.";
-  return "로그인 중 오류가 발생했습니다.";
+  switch (error) {
+    case "user_not_found":       return "등록되지 않은 계정이거나 비활성화된 계정입니다. 관리자에게 문의하세요.";
+    case "oauth_cancelled":      return "Google 로그인이 취소되었습니다.";
+    case "token_exchange_failed":return "Google 인증 처리 중 오류가 발생했습니다. 다시 시도해주세요.";
+    case "userinfo_fetch_failed":return "Google 계정 정보를 가져오지 못했습니다. 다시 시도해주세요.";
+    case "server_misconfigured": return "서버 설정 오류입니다. 관리자에게 문의하세요.";
+    case "server_error":         return "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+    case "google_login_failed":  return "Google 로그인에 실패했습니다. 다시 시도해주세요.";
+    default:                     return "로그인 중 오류가 발생했습니다. 다시 시도해주세요.";
+  }
 }
 
 export default function Login() {

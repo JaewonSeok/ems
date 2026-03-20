@@ -8,7 +8,8 @@ export default function GoogleCallback() {
   const { setSession } = useAuthStore();
 
   useEffect(() => {
-    const queryString = window.location.hash.split("?")[1];
+    // BrowserRouter: 쿼리 파라미터는 window.location.search에 있음
+    const queryString = window.location.search.slice(1);
 
     if (!queryString) {
       navigate("/login", { replace: true });

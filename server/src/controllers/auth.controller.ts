@@ -114,7 +114,7 @@ export function googleLogin(_req: Request, res: Response) {
 
 export async function googleCallback(req: Request, res: Response) {
   const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
-  const loginRedirect = `${frontendUrl}/#/login`;
+  const loginRedirect = `${frontendUrl}/login`;
 
   const redirectError = (error: string) =>
     res.redirect(`${loginRedirect}?error=${encodeURIComponent(error)}`);
@@ -197,7 +197,7 @@ export async function googleCallback(req: Request, res: Response) {
       position_title: user.position_title ?? ""
     });
 
-    return res.redirect(`${frontendUrl}/#/auth/google/callback?${params.toString()}`);
+    return res.redirect(`${frontendUrl}/auth/google/callback?${params.toString()}`);
   } catch (err) {
     console.error("googleCallback error:", err);
     return redirectError("server_error");
