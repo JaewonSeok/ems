@@ -64,6 +64,7 @@ model external_trainings {
   user_id            String                  @db.Uuid
   training_name      String                  @db.VarChar(255)
   type               training_type_enum
+  education_category String?                 @db.VarChar(100)
   start_date         DateTime                @db.Date
   end_date           DateTime                @db.Date
   hours              Decimal                 @db.Decimal(6, 1)
