@@ -4,7 +4,11 @@ import { downloadBulkUploadTemplate, uploadBulkUploadFile } from "../api/bulkUpl
 import { BulkUploadCategory, BulkUploadResult } from "../types/bulkUpload";
 import type { ExternalEducationRowData } from "../types/externalBulkUpload";
 import { downloadExternalEducationTemplate } from "../utils/externalEducationTemplate";
-import { parseExternalEducationFile, rowsToRecords } from "../utils/externalEducationParser";
+import {
+  parseExternalEducationFile,
+  revalidateAllRows,
+  rowsToRecords,
+} from "../utils/externalEducationParser";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -20,6 +24,41 @@ const OTHER_CATEGORY_OPTIONS: Array<{ value: BulkUploadCategory; label: string }
 ];
 
 type ActiveTab = "external-education" | "others";
+
+// ─── Column definitions for the editable preview table ───────────────────────
+
+type DataKey =
+  | "no" | "division" | "team" | "name" | "educationType" | "educationName"
+  | "startDate" | "endDate" | "days" | "cost" | "organizer" | "certificate";
+
+interface ColDef {
+  key: DataKey;
+  label: string;
+  inputType: "text" | "date" | "number" | "select";
+  readOnly?: boolean;
+  thWidth: string;
+  minEditWidth: string;
+  step?: string;
+  options?: string[];
+}
+
+const COL_DEFS: ColDef[] = [
+  { key: "no",            label: "No",     inputType: "number", readOnly: true, thWidth: "w-10",  minEditWidth: "44px" },
+  { key: "division",      label: "본부",    inputType: "text",                  thWidth: "w-24",  minEditWidth: "80px" },
+  { key: "team",          label: "팀",      inputType: "text",                  thWidth: "w-24",  minEditWidth: "80px" },
+  { key: "name",          label: "이름",    inputType: "text",                  thWidth: "w-20",  minEditWidth: "70px" },
+  { key: "educationType", label: "교육구분", inputType: "text",                  thWidth: "w-24",  minEditWidth: "80px" },
+  { key: "educationName", label: "교육명",  inputType: "text",                  thWidth: "w-44",  minEditWidth: "140px" },
+  { key: "startDate",     label: "시작일자", inputType: "date",                  thWidth: "w-32",  minEditWidth: "130px" },
+  { key: "endDate",       label: "종료일자", inputType: "date",                  thWidth: "w-32",  minEditWidth: "130px" },
+  { key: "days",          label: "교육일수", inputType: "number", step: "0.5",   thWidth: "w-20",  minEditWidth: "70px" },
+  { key: "cost",          label: "교육비",  inputType: "number", step: "1",     thWidth: "w-24",  minEditWidth: "80px" },
+  { key: "organizer",     label: "교육주관", inputType: "text",                  thWidth: "w-36",  minEditWidth: "100px" },
+  { key: "certificate",   label: "이수증",  inputType: "select", options: ["Y", "N"], thWidth: "w-16", minEditWidth: "60px" },
+];
+
+// Columns available for Tab key navigation (no is read-only)
+const NAVIGABLE_KEYS = COL_DEFS.filter((c) => !c.readOnly).map((c) => c.key);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,30 +77,46 @@ function hasAllowedExtension(fileName: string): boolean {
   return lower.endsWith(".xlsx") || lower.endsWith(".xls");
 }
 
-// ─── Preview table column definitions ────────────────────────────────────────
+/** Coerce a raw string input value to the correct field type. */
+function coerceFieldValue(key: DataKey, raw: string): string | number {
+  if (key === "days" || key === "cost" || key === "no") {
+    const n = Number(raw.replace(/,/g, ""));
+    return isFinite(n) ? n : raw;
+  }
+  return raw;
+}
 
-const PREVIEW_COLS = [
-  { key: "no", label: "No", width: "w-12" },
-  { key: "division", label: "본부", width: "w-24" },
-  { key: "team", label: "팀", width: "w-24" },
-  { key: "name", label: "이름", width: "w-20" },
-  { key: "educationType", label: "교육구분", width: "w-24" },
-  { key: "educationName", label: "교육명", width: "w-48" },
-  { key: "startDate", label: "시작일자", width: "w-28" },
-  { key: "endDate", label: "종료일자", width: "w-28" },
-  { key: "days", label: "교육일수", width: "w-20" },
-  { key: "cost", label: "교육비", width: "w-24" },
-  { key: "organizer", label: "교육주관", width: "w-36" },
-  { key: "certificate", label: "이수증", width: "w-16" },
-] as const;
+function getRowValue(row: ExternalEducationRowData, key: DataKey): string {
+  const v = row[key as keyof ExternalEducationRowData];
+  return v === undefined || v === null ? "" : String(v);
+}
+
+function makeEmptyRow(rowIndex: number, no: number): ExternalEducationRowData {
+  return {
+    _rowIndex: rowIndex,
+    _isValid: false,
+    _hasWarning: false,
+    _errors: [
+      "본부 필수", "팀 필수", "이름 필수", "교육구분 필수", "교육명 필수",
+      "시작일자 형식 오류 (YYYY-MM-DD)", "종료일자 형식 오류 (YYYY-MM-DD)",
+      "교육일수는 양수여야 함", "교육주관 필수",
+    ],
+    _warnings: [],
+    no,
+    division: "", team: "", name: "", educationType: "", educationName: "",
+    startDate: "", endDate: "", days: "", cost: 0, organizer: "", certificate: "N",
+  };
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BulkUpload() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("external-education");
 
-  // ── External Education tab state ──
+  // ── External Education state ──
   const extFileInputRef = useRef<HTMLInputElement | null>(null);
+  const nextRowIdxRef = useRef(0);
+
   const [extDragActive, setExtDragActive] = useState(false);
   const [extFile, setExtFile] = useState<File | null>(null);
   const [extParsing, setExtParsing] = useState(false);
@@ -71,7 +126,11 @@ export default function BulkUpload() {
   const [extSuccess, setExtSuccess] = useState<string | null>(null);
   const [extPage, setExtPage] = useState(1);
 
-  // ── Other categories tab state ──
+  // Inline editing
+  const [editingCell, setEditingCell] = useState<{ rowIdx: number; colKey: DataKey; value: string } | null>(null);
+  const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
+
+  // ── Other categories state ──
   const otherFileInputRef = useRef<HTMLInputElement | null>(null);
   const [otherDragActive, setOtherDragActive] = useState(false);
   const [otherCategory, setOtherCategory] = useState<BulkUploadCategory>("external-training");
@@ -81,7 +140,16 @@ export default function BulkUpload() {
   const [otherError, setOtherError] = useState<string | null>(null);
   const [otherResult, setOtherResult] = useState<BulkUploadResult | null>(null);
 
-  // ── External Education: template download ──
+  // ── Derived values ──
+  const extTotalPages = extRows ? Math.ceil(extRows.length / PAGE_SIZE) : 0;
+  const extPagedRows = extRows
+    ? extRows.slice((extPage - 1) * PAGE_SIZE, extPage * PAGE_SIZE)
+    : [];
+  const extValidCount   = extRows?.filter((r) => r._isValid).length ?? 0;
+  const extWarnCount    = extRows?.filter((r) => r._hasWarning && r._isValid).length ?? 0;
+  const extErrorCount   = extRows?.filter((r) => !r._isValid).length ?? 0;
+
+  // ── External Education: template ──
   function handleExtTemplateDownload() {
     try {
       downloadExternalEducationTemplate();
@@ -90,24 +158,19 @@ export default function BulkUpload() {
     }
   }
 
-  // ── External Education: file assignment + parse ──
+  // ── External Education: file load + parse ──
   async function assignExtFile(file: File | null) {
     if (!file) return;
-
-    if (!hasAllowedExtension(file.name)) {
-      setExtError("허용된 확장자는 .xlsx, .xls 입니다.");
-      return;
-    }
-    if (file.size > MAX_EXT_FILE_SIZE) {
-      setExtError("최대 파일 크기는 5MB입니다.");
-      return;
-    }
+    if (!hasAllowedExtension(file.name)) { setExtError("허용된 확장자는 .xlsx, .xls 입니다."); return; }
+    if (file.size > MAX_EXT_FILE_SIZE)   { setExtError("최대 파일 크기는 5MB입니다.");        return; }
 
     setExtFile(file);
     setExtError(null);
     setExtSuccess(null);
     setExtRows(null);
     setExtPage(1);
+    setEditingCell(null);
+    setEditedCells(new Set());
     setExtParsing(true);
 
     try {
@@ -116,6 +179,7 @@ export default function BulkUpload() {
         setExtError("데이터 행이 없습니다. 2행부터 데이터를 입력해주세요.");
         setExtFile(null);
       } else {
+        nextRowIdxRef.current = Math.max(...rows.map((r) => r._rowIndex)) + 1;
         setExtRows(rows);
       }
     } catch (err) {
@@ -126,31 +190,28 @@ export default function BulkUpload() {
     }
   }
 
-  // ── External Education: reset ──
   function handleExtReset() {
     setExtFile(null);
     setExtRows(null);
     setExtError(null);
     setExtSuccess(null);
     setExtPage(1);
+    setEditingCell(null);
+    setEditedCells(new Set());
+    nextRowIdxRef.current = 0;
   }
 
-  // ── External Education: upload ──
+  // ── External Education: upload ALL rows ──
   async function handleExtUpload() {
-    if (!extRows) return;
+    if (!extRows || extRows.length === 0) return;
 
-    const validRows = extRows.filter((r) => r._isValid);
-    const errorCount = extRows.filter((r) => !r._isValid).length;
-
-    if (validRows.length === 0) {
-      setExtError("업로드할 정상 데이터가 없습니다.");
-      return;
-    }
-
-    const confirmMsg =
-      errorCount > 0
-        ? `오류 데이터 ${errorCount}건이 있습니다. 오류 행을 제외하고 ${validRows.length}건을 업로드하시겠습니까?`
-        : `${validRows.length}건을 업로드하시겠습니까?`;
+    const total = extRows.length;
+    const parts: string[] = [];
+    if (extErrorCount > 0) parts.push(`오류 ${extErrorCount}건`);
+    if (extWarnCount  > 0) parts.push(`경고 ${extWarnCount}건`);
+    const confirmMsg = parts.length > 0
+      ? `${parts.join(", ")}이 포함되어 있습니다. 전체 ${total}건을 업로드하시겠습니까?`
+      : `전체 ${total}건을 업로드하시겠습니까?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -158,7 +219,7 @@ export default function BulkUpload() {
     setExtError(null);
 
     try {
-      const records = rowsToRecords(validRows);
+      const records = rowsToRecords(extRows);
       const result = await bulkUploadExternalEducations(records);
 
       if (result.success) {
@@ -166,6 +227,8 @@ export default function BulkUpload() {
         setExtRows(null);
         setExtFile(null);
         setExtPage(1);
+        setEditingCell(null);
+        setEditedCells(new Set());
       } else {
         setExtError(result.error ?? "업로드에 실패했습니다.");
       }
@@ -176,26 +239,128 @@ export default function BulkUpload() {
     }
   }
 
-  // ── External Education: pagination ──
-  const extTotalPages = extRows ? Math.ceil(extRows.length / PAGE_SIZE) : 0;
-  const extPagedRows = extRows
-    ? extRows.slice((extPage - 1) * PAGE_SIZE, extPage * PAGE_SIZE)
-    : [];
-  const extValidCount = extRows?.filter((r) => r._isValid).length ?? 0;
-  const extErrorCount = extRows?.filter((r) => !r._isValid).length ?? 0;
+  // ── Inline editing ──
 
-  // ── Other categories: template download ──
+  function commitCell(rowIdx: number, colKey: DataKey, rawValue: string) {
+    const coerced = coerceFieldValue(colKey, rawValue);
+    setExtRows((prev) => {
+      if (!prev) return prev;
+      const updated = prev.map((row) =>
+        row._rowIndex !== rowIdx ? row : { ...row, [colKey]: coerced }
+      );
+      return revalidateAllRows(updated);
+    });
+    setEditedCells((prev) => new Set(prev).add(`${rowIdx}::${colKey}`));
+  }
+
+  function handleCellClick(rowIdx: number, colKey: DataKey, currentValue: string) {
+    if (editingCell?.rowIdx === rowIdx && editingCell.colKey === colKey) return;
+    // Commit any active cell first (blur will also fire, but handle explicitly for reliability)
+    if (editingCell && !(editingCell.rowIdx === rowIdx && editingCell.colKey === colKey)) {
+      commitCell(editingCell.rowIdx, editingCell.colKey, editingCell.value);
+    }
+    setEditingCell({ rowIdx, colKey, value: currentValue });
+  }
+
+  function handleCellBlur(rowIdx: number, colKey: DataKey) {
+    if (!editingCell || editingCell.rowIdx !== rowIdx || editingCell.colKey !== colKey) return;
+    commitCell(rowIdx, colKey, editingCell.value);
+    setEditingCell(null);
+  }
+
+  function getNextNavigableCell(rowIdx: number, colKey: DataKey): { rowIdx: number; colKey: DataKey } | null {
+    const colPos = NAVIGABLE_KEYS.indexOf(colKey);
+    const rowPos = extPagedRows.findIndex((r) => r._rowIndex === rowIdx);
+    if (colPos < NAVIGABLE_KEYS.length - 1) {
+      return { rowIdx, colKey: NAVIGABLE_KEYS[colPos + 1] };
+    }
+    if (rowPos < extPagedRows.length - 1) {
+      return { rowIdx: extPagedRows[rowPos + 1]._rowIndex, colKey: NAVIGABLE_KEYS[0] };
+    }
+    return null;
+  }
+
+  function handleCellKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    rowIdx: number,
+    colKey: DataKey
+  ) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitCell(rowIdx, colKey, editingCell!.value);
+      setEditingCell(null);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setEditingCell(null);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      const currentValue = editingCell!.value;
+      const next = getNextNavigableCell(rowIdx, colKey);
+      // Capture next cell's value before committing (avoids stale closure)
+      const nextRow = next ? extRows?.find((r) => r._rowIndex === next.rowIdx) : null;
+      const nextValue = next && nextRow ? getRowValue(nextRow, next.colKey) : "";
+      commitCell(rowIdx, colKey, currentValue);
+      setEditingCell(next ? { rowIdx: next.rowIdx, colKey: next.colKey, value: nextValue } : null);
+    }
+  }
+
+  // ── Row delete ──
+  function handleDeleteRow(rowIdx: number) {
+    if (editingCell?.rowIdx === rowIdx) setEditingCell(null);
+    setExtRows((prev) => {
+      if (!prev) return prev;
+      const filtered = prev
+        .filter((r) => r._rowIndex !== rowIdx)
+        .map((r, i) => ({ ...r, no: i + 1 }));
+      return revalidateAllRows(filtered);
+    });
+    setEditedCells((prev) => {
+      const next = new Set(prev);
+      for (const k of next) {
+        if (k.startsWith(`${rowIdx}::`)) next.delete(k);
+      }
+      return next;
+    });
+    // Adjust page if last row on current page was deleted
+    setExtPage((p) => {
+      const remaining = (extRows?.length ?? 1) - 1;
+      const maxPage = Math.max(1, Math.ceil(remaining / PAGE_SIZE));
+      return Math.min(p, maxPage);
+    });
+  }
+
+  // ── Row add ──
+  function handleAddRow() {
+    const newRowIdx = nextRowIdxRef.current++;
+    const newNo = (extRows?.length ?? 0) + 1;
+    const newRow = makeEmptyRow(newRowIdx, newNo);
+    setExtRows((prev) => {
+      const updated = [...(prev ?? []), newRow];
+      return revalidateAllRows(updated.map((r, i) => ({ ...r, no: i + 1 })));
+    });
+    // Jump to last page
+    const newTotal = (extRows?.length ?? 0) + 1;
+    setExtPage(Math.ceil(newTotal / PAGE_SIZE));
+  }
+
+  // ── Pagination with edit commit ──
+  function changePage(newPage: number) {
+    if (editingCell) {
+      commitCell(editingCell.rowIdx, editingCell.colKey, editingCell.value);
+      setEditingCell(null);
+    }
+    setExtPage(newPage);
+  }
+
+  // ── Other categories ──
   async function handleOtherDownload() {
-    setOtherDownloading(true);
-    setOtherError(null);
+    setOtherDownloading(true); setOtherError(null);
     try {
       const template = await downloadBulkUploadTemplate(otherCategory);
-      const objectUrl = URL.createObjectURL(template.blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = template.fileName;
-      anchor.click();
-      URL.revokeObjectURL(objectUrl);
+      const url = URL.createObjectURL(template.blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = template.fileName; a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       setOtherError(getAxiosErrorMessage(err, "템플릿 다운로드에 실패했습니다."));
     } finally {
@@ -203,34 +368,18 @@ export default function BulkUpload() {
     }
   }
 
-  // ── Other categories: file assignment ──
   function assignOtherFile(file: File | null) {
     if (!file) return;
-    if (!hasAllowedExtension(file.name)) {
-      setOtherError("허용된 확장자는 .xlsx, .xls 입니다.");
-      return;
-    }
-    if (file.size > MAX_OTHER_FILE_SIZE) {
-      setOtherError("최대 파일 크기는 10MB입니다.");
-      return;
-    }
-    setOtherFile(file);
-    setOtherError(null);
-    setOtherResult(null);
+    if (!hasAllowedExtension(file.name)) { setOtherError("허용된 확장자는 .xlsx, .xls 입니다."); return; }
+    if (file.size > MAX_OTHER_FILE_SIZE)  { setOtherError("최대 파일 크기는 10MB입니다.");        return; }
+    setOtherFile(file); setOtherError(null); setOtherResult(null);
   }
 
-  // ── Other categories: upload ──
   async function handleOtherUpload() {
-    if (!otherFile) {
-      setOtherError("업로드할 파일을 선택해주세요.");
-      return;
-    }
-    setOtherUploading(true);
-    setOtherError(null);
-    setOtherResult(null);
+    if (!otherFile) { setOtherError("업로드할 파일을 선택해주세요."); return; }
+    setOtherUploading(true); setOtherError(null); setOtherResult(null);
     try {
-      const result = await uploadBulkUploadFile(otherCategory, otherFile);
-      setOtherResult(result);
+      setOtherResult(await uploadBulkUploadFile(otherCategory, otherFile));
     } catch (err) {
       setOtherError(getAxiosErrorMessage(err, "일괄 업로드 처리 중 오류가 발생했습니다."));
     } finally {
@@ -238,7 +387,7 @@ export default function BulkUpload() {
     }
   }
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <section className="space-y-4">
@@ -248,36 +397,31 @@ export default function BulkUpload() {
 
       {/* Tab selector */}
       <div className="flex gap-1 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab("external-education")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === "external-education"
-              ? "border-blue-600 text-blue-700"
-              : "border-transparent text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          사외교육 일괄 업로드
-        </button>
-        <button
-          onClick={() => setActiveTab("others")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            activeTab === "others"
-              ? "border-blue-600 text-blue-700"
-              : "border-transparent text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          기타 일괄 업로드
-        </button>
+        {(["external-education", "others"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === tab
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {tab === "external-education" ? "사외교육 일괄 업로드" : "기타 일괄 업로드"}
+          </button>
+        ))}
       </div>
 
-      {/* ── Tab: 사외교육 일괄 업로드 ── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* Tab: 사외교육 일괄 업로드                                              */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "external-education" && (
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
             사외교육 실적을 엑셀 템플릿으로 일괄 등록합니다. 이름·본부·팀으로 직원을 조회하여 저장합니다.
           </p>
 
-          {/* Step 1: Template download */}
+          {/* Step 1: Template */}
           <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
             <h3 className="text-base font-semibold">1. 템플릿 다운로드</h3>
             <p className="text-sm text-slate-600">
@@ -285,10 +429,11 @@ export default function BulkUpload() {
             </p>
             <button
               onClick={handleExtTemplateDownload}
-              className="inline-flex items-center gap-2 rounded bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-700"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               사외교육_일괄업로드_템플릿.xlsx 다운로드
             </button>
@@ -303,32 +448,18 @@ export default function BulkUpload() {
               type="file"
               accept=".xlsx,.xls"
               className="hidden"
-              onChange={(e) => {
-                void assignExtFile(e.target.files?.[0] ?? null);
-                e.target.value = "";
-              }}
+              onChange={(e) => { void assignExtFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
             />
 
             {!extRows && (
               <div
-                role="button"
-                tabIndex={0}
+                role="button" tabIndex={0}
                 onClick={() => extFileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    extFileInputRef.current?.click();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); extFileInputRef.current?.click(); } }}
                 onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setExtDragActive(true); }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setExtDragActive(true); }}
+                onDragOver={(e)  => { e.preventDefault(); e.stopPropagation(); setExtDragActive(true); }}
                 onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setExtDragActive(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setExtDragActive(false);
-                  void assignExtFile(e.dataTransfer.files?.[0] ?? null);
-                }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setExtDragActive(false); void assignExtFile(e.dataTransfer.files?.[0] ?? null); }}
                 className={`cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
                   extDragActive ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:border-slate-400"
                 }`}
@@ -344,7 +475,8 @@ export default function BulkUpload() {
                 ) : (
                   <>
                     <svg className="mx-auto w-10 h-10 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <p className="text-base font-medium text-slate-800">엑셀 파일을 드래그하거나 클릭하여 선택</p>
                     <p className="mt-1 text-sm text-slate-500">(.xlsx, .xls / 최대 5MB)</p>
@@ -353,17 +485,10 @@ export default function BulkUpload() {
               </div>
             )}
 
-            {extFile && !extRows && !extParsing && (
-              <p className="text-sm text-slate-700">선택 파일: {extFile.name}</p>
-            )}
-
             {extFile && extRows && (
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-700">선택 파일: <strong>{extFile.name}</strong></span>
-                <button
-                  onClick={handleExtReset}
-                  className="text-xs text-slate-500 hover:text-slate-800 underline"
-                >
+                <button onClick={handleExtReset} className="text-xs text-slate-500 hover:text-slate-800 underline">
                   초기화
                 </button>
               </div>
@@ -373,72 +498,162 @@ export default function BulkUpload() {
           {/* Step 3: Preview table */}
           {extRows && (
             <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+              {/* Summary bar */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-base font-semibold">3. 데이터 미리보기</h3>
-                <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-3 text-sm flex-wrap">
                   <span className="text-slate-600">전체 <strong>{extRows.length}</strong>건</span>
                   <span className="text-emerald-700">정상 <strong>{extValidCount}</strong>건</span>
-                  {extErrorCount > 0 && (
-                    <span className="text-rose-700">오류 <strong>{extErrorCount}</strong>건</span>
-                  )}
+                  {extWarnCount  > 0 && <span className="text-amber-600">경고 <strong>{extWarnCount}</strong>건</span>}
+                  {extErrorCount > 0 && <span className="text-rose-700">오류 <strong>{extErrorCount}</strong>건</span>}
+                  <span className="text-xs text-slate-400 ml-1">셀 클릭 시 편집 가능</span>
                 </div>
               </div>
 
+              {/* Table */}
               <div className="overflow-x-auto rounded border border-slate-200">
                 <table className="w-full text-xs whitespace-nowrap">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                      <th className="py-2 px-3 w-16">상태</th>
-                      {PREVIEW_COLS.map((col) => (
-                        <th key={col.key} className={`py-2 px-3 ${col.width}`}>
+                      <th className="py-2 px-3 w-16 text-center">상태</th>
+                      {COL_DEFS.map((col) => (
+                        <th key={col.key} className={`py-2 px-3 ${col.thWidth}`}>
                           {col.label}
                         </th>
                       ))}
+                      <th className="py-2 px-3 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {extPagedRows.map((row) => {
-                      const tooltipText = [
+                      const rowBg = !row._isValid
+                        ? "bg-rose-50"
+                        : row._hasWarning
+                        ? "bg-amber-50"
+                        : "";
+                      const statusTip = [
                         ...row._errors.map((e) => `❌ ${e}`),
                         ...row._warnings.map((w) => `⚠️ ${w}`),
                       ].join("\n");
 
                       return (
-                        <tr
-                          key={row._rowIndex}
-                          title={tooltipText || undefined}
-                          className={`border-b border-slate-100 last:border-b-0 ${
-                            !row._isValid
-                              ? "bg-rose-50"
-                              : row._hasWarning
-                              ? "bg-amber-50"
-                              : ""
-                          }`}
-                        >
-                          <td className="py-2 px-3">
+                        <tr key={row._rowIndex} className={`border-b border-slate-100 last:border-b-0 ${rowBg}`}>
+                          {/* Status cell */}
+                          <td className="py-2 px-3 text-center">
                             {!row._isValid ? (
-                              <span
-                                className="cursor-help text-rose-600 font-medium"
-                                title={row._errors.join("\n")}
-                              >
-                                ❌ 오류
+                              <span className="cursor-help text-rose-600 font-medium" title={statusTip}>
+                                ❌
                               </span>
                             ) : row._hasWarning ? (
-                              <span
-                                className="cursor-help text-amber-600 font-medium"
-                                title={row._warnings.join("\n")}
-                              >
-                                ⚠️ 경고
+                              <span className="cursor-help text-amber-500 font-medium" title={statusTip}>
+                                ⚠️
                               </span>
                             ) : (
-                              <span className="text-emerald-600 font-medium">✅ 정상</span>
+                              <span className="text-emerald-600">✅</span>
                             )}
                           </td>
-                          {PREVIEW_COLS.map((col) => (
-                            <td key={col.key} className="py-2 px-3 max-w-[200px] truncate">
-                              {String(row[col.key] ?? "")}
-                            </td>
-                          ))}
+
+                          {/* Data cells */}
+                          {COL_DEFS.map((col) => {
+                            const isEditing =
+                              editingCell?.rowIdx === row._rowIndex &&
+                              editingCell.colKey === col.key;
+                            const isEdited = editedCells.has(`${row._rowIndex}::${col.key}`);
+                            const displayVal = getRowValue(row, col.key);
+
+                            if (col.readOnly) {
+                              return (
+                                <td key={col.key} className="py-2 px-3 text-slate-500 select-none">
+                                  {displayVal}
+                                </td>
+                              );
+                            }
+
+                            if (isEditing) {
+                              const commonCls =
+                                "w-full border border-blue-500 rounded px-1 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400";
+                              if (col.inputType === "select") {
+                                return (
+                                  <td key={col.key} className="py-1 px-1">
+                                    <select
+                                      autoFocus
+                                      value={editingCell.value}
+                                      style={{ minWidth: col.minEditWidth }}
+                                      className={commonCls}
+                                      onChange={(e) =>
+                                        setEditingCell({ ...editingCell, value: e.target.value })
+                                      }
+                                      onBlur={() => handleCellBlur(row._rowIndex, col.key)}
+                                      onKeyDown={(e) => handleCellKeyDown(e, row._rowIndex, col.key)}
+                                    >
+                                      {(col.options ?? []).map((opt) => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                );
+                              }
+                              return (
+                                <td key={col.key} className="py-1 px-1">
+                                  <input
+                                    autoFocus
+                                    type={col.inputType}
+                                    step={col.step}
+                                    value={editingCell.value}
+                                    style={{ minWidth: col.minEditWidth }}
+                                    className={commonCls}
+                                    onChange={(e) =>
+                                      setEditingCell({ ...editingCell, value: e.target.value })
+                                    }
+                                    onBlur={() => handleCellBlur(row._rowIndex, col.key)}
+                                    onKeyDown={(e) => handleCellKeyDown(e, row._rowIndex, col.key)}
+                                  />
+                                </td>
+                              );
+                            }
+
+                            return (
+                              <td
+                                key={col.key}
+                                onClick={() => handleCellClick(row._rowIndex, col.key, displayVal)}
+                                className={`relative py-2 px-3 max-w-[200px] truncate cursor-text select-none
+                                  hover:bg-blue-50/60 transition-colors
+                                  ${isEdited ? "bg-blue-50" : ""}`}
+                                title={displayVal || undefined}
+                              >
+                                {/* Edited marker: small blue triangle in top-left corner */}
+                                {isEdited && (
+                                  <span
+                                    className="absolute top-0 left-0 w-0 h-0 pointer-events-none"
+                                    style={{
+                                      borderStyle: "solid",
+                                      borderWidth: "5px 5px 0 0",
+                                      borderColor: "#60a5fa transparent transparent transparent",
+                                    }}
+                                  />
+                                )}
+                                {displayVal !== ""
+                                  ? displayVal
+                                  : <span className="text-slate-300 text-xs">—</span>
+                                }
+                              </td>
+                            );
+                          })}
+
+                          {/* Delete button */}
+                          <td className="py-2 px-2 text-center">
+                            <button
+                              onClick={() => handleDeleteRow(row._rowIndex)}
+                              className="text-slate-400 hover:text-rose-500 transition-colors"
+                              title="행 삭제"
+                              aria-label="행 삭제"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -446,74 +661,84 @@ export default function BulkUpload() {
                 </table>
               </div>
 
-              {/* Pagination */}
-              {extTotalPages > 1 && (
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => setExtPage((p) => Math.max(1, p - 1))}
-                    disabled={extPage === 1}
-                    className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40 hover:bg-slate-50"
-                  >
-                    이전
-                  </button>
-                  <span className="text-sm text-slate-600">
-                    {extPage} / {extTotalPages}
-                  </span>
-                  <button
-                    onClick={() => setExtPage((p) => Math.min(extTotalPages, p + 1))}
-                    disabled={extPage === extTotalPages}
-                    className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40 hover:bg-slate-50"
-                  >
-                    다음
-                  </button>
-                </div>
-              )}
+              {/* Add row + Pagination */}
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={handleAddRow}
+                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  행 추가
+                </button>
+
+                {extTotalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => changePage(Math.max(1, extPage - 1))}
+                      disabled={extPage === 1}
+                      className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40 hover:bg-slate-50"
+                    >
+                      이전
+                    </button>
+                    <span className="text-sm text-slate-600">{extPage} / {extTotalPages}</span>
+                    <button
+                      onClick={() => changePage(Math.min(extTotalPages, extPage + 1))}
+                      disabled={extPage === extTotalPages}
+                      className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40 hover:bg-slate-50"
+                    >
+                      다음
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Upload button */}
-              <div className="pt-2 border-t border-slate-100">
+              <div className="pt-2 border-t border-slate-100 flex items-center gap-4">
                 <button
                   onClick={() => void handleExtUpload()}
-                  disabled={extUploading || extValidCount === 0}
+                  disabled={extUploading || extRows.length === 0}
                   className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {extUploading
-                    ? "업로드 중..."
-                    : extErrorCount > 0
-                    ? `오류 제외 ${extValidCount}건 업로드`
-                    : `${extValidCount}건 업로드`}
+                  {extUploading ? "업로드 중..." : `전체 ${extRows.length}건 업로드`}
                 </button>
+                {(extErrorCount > 0 || extWarnCount > 0) && (
+                  <span className="text-xs text-slate-500">
+                    오류/경고 행도 포함하여 업로드합니다.
+                  </span>
+                )}
               </div>
             </article>
           )}
 
-          {/* Error / Success messages */}
           {extError && (
             <article className="rounded-xl border border-rose-200 bg-rose-50 p-4">
               <p className="text-sm text-rose-700">{extError}</p>
             </article>
           )}
-
           {extSuccess && (
             <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <p className="text-sm text-emerald-700">{extSuccess}</p>
             </article>
           )}
 
-          {/* Guide */}
           <article className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <h3 className="font-semibold text-amber-900">안내사항</h3>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
               <li>이름·본부·팀이 시스템에 등록된 직원과 정확히 일치해야 합니다.</li>
               <li>날짜는 YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD 형식을 지원합니다.</li>
               <li>교육비 빈값은 0으로, 이수증 빈값은 N으로 처리됩니다.</li>
-              <li>오류 행은 업로드 시 자동으로 제외됩니다.</li>
+              <li>오류·경고 행도 포함하여 전체 업로드됩니다. 업로드 전 셀 클릭으로 직접 수정하세요.</li>
               <li>1행은 헤더, 2행부터 데이터입니다. (템플릿 2행 예시 삭제 후 입력)</li>
             </ul>
           </article>
         </div>
       )}
 
-      {/* ── Tab: 기타 일괄 업로드 ── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* Tab: 기타 일괄 업로드                                                  */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "others" && (
         <div className="space-y-4">
           <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
@@ -523,11 +748,7 @@ export default function BulkUpload() {
                 {OTHER_CATEGORY_OPTIONS.map((option) => (
                   <button
                     key={option.value}
-                    onClick={() => {
-                      setOtherCategory(option.value);
-                      setOtherResult(null);
-                      setOtherError(null);
-                    }}
+                    onClick={() => { setOtherCategory(option.value); setOtherResult(null); setOtherError(null); }}
                     className={`rounded-lg border px-4 py-2 text-sm ${
                       otherCategory === option.value
                         ? "border-blue-600 text-blue-700 bg-blue-50"
@@ -558,34 +779,17 @@ export default function BulkUpload() {
               <h3 className="text-base font-semibold">3. 파일 업로드</h3>
               <input
                 ref={otherFileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  assignOtherFile(e.target.files?.[0] ?? null);
-                  e.target.value = "";
-                }}
+                type="file" accept=".xlsx,.xls" className="hidden"
+                onChange={(e) => { assignOtherFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
               />
-
               <div
-                role="button"
-                tabIndex={0}
+                role="button" tabIndex={0}
                 onClick={() => otherFileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    otherFileInputRef.current?.click();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); otherFileInputRef.current?.click(); } }}
                 onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setOtherDragActive(true); }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setOtherDragActive(true); }}
+                onDragOver={(e)  => { e.preventDefault(); e.stopPropagation(); setOtherDragActive(true); }}
                 onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setOtherDragActive(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setOtherDragActive(false);
-                  assignOtherFile(e.dataTransfer.files?.[0] ?? null);
-                }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setOtherDragActive(false); assignOtherFile(e.dataTransfer.files?.[0] ?? null); }}
                 className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center ${
                   otherDragActive ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50"
                 }`}
@@ -593,9 +797,7 @@ export default function BulkUpload() {
                 <p className="text-base font-medium text-slate-800">☁️ 엑셀 파일을 선택하세요</p>
                 <p className="mt-1 text-sm text-slate-500">(.xlsx, .xls)</p>
               </div>
-
               {otherFile && <p className="text-sm text-slate-700">선택 파일: {otherFile.name}</p>}
-
               <button
                 onClick={() => void handleOtherUpload()}
                 disabled={otherUploading}
@@ -616,8 +818,7 @@ export default function BulkUpload() {
             <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
               <h3 className="text-base font-semibold">업로드 결과</h3>
               <p className="text-sm text-slate-700">
-                성공 <strong>{otherResult.createdCount}</strong>건 / 실패{" "}
-                <strong>{otherResult.failedCount}</strong>건
+                성공 <strong>{otherResult.createdCount}</strong>건 / 실패 <strong>{otherResult.failedCount}</strong>건
               </p>
               {otherResult.failedRows.length > 0 && (
                 <div className="max-h-64 overflow-auto rounded border border-slate-200">
@@ -630,10 +831,7 @@ export default function BulkUpload() {
                     </thead>
                     <tbody>
                       {otherResult.failedRows.map((row) => (
-                        <tr
-                          key={`${row.row}:${row.reason}`}
-                          className="border-b border-slate-100 last:border-b-0"
-                        >
+                        <tr key={`${row.row}:${row.reason}`} className="border-b border-slate-100 last:border-b-0">
                           <td className="py-2 px-3">{row.row}</td>
                           <td className="py-2 px-3 text-rose-700">{row.reason}</td>
                         </tr>

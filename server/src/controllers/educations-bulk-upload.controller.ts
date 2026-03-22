@@ -18,83 +18,65 @@ interface ExternalEducationRecord {
   certificate: string;
 }
 
-class RecordValidationError extends Error {}
-
 function normalizeStr(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function validateDateStr(value: string, fieldName: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new RecordValidationError(`${fieldName}은(는) YYYY-MM-DD 형식이어야 합니다.`);
-  }
-  const date = new Date(`${value}T00:00:00.000Z`);
-  if (isNaN(date.getTime())) {
-    throw new RecordValidationError(`${fieldName} 날짜가 올바르지 않습니다.`);
-  }
-  return date;
+/** Parse YYYY-MM-DD string → UTC Date. Returns null if not parseable. */
+function tryParseDate(value: unknown): Date | null {
+  const str = normalizeStr(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+  const date = new Date(`${str}T00:00:00.000Z`);
+  return isNaN(date.getTime()) ? null : date;
 }
 
-function validateRecord(record: ExternalEducationRecord): {
-  division: string;
-  team: string;
+interface ParsedRecord {
   name: string;
-  educationType: string;
+  team: string;
+  division: string;
   educationName: string;
+  educationType: string;
   startDate: Date;
   endDate: Date;
   hours: number;
   cost: number;
   organizer: string;
   certificateStatus: certificate_status_enum;
-} {
-  const division = normalizeStr(record.division);
-  const team = normalizeStr(record.team);
-  const name = normalizeStr(record.name);
-  const educationType = normalizeStr(record.educationType);
-  const educationName = normalizeStr(record.educationName);
-  const organizer = normalizeStr(record.organizer);
-  const certificateRaw = normalizeStr(record.certificate).toUpperCase();
+}
 
-  if (!division) throw new RecordValidationError("본부는 필수입니다.");
-  if (!team) throw new RecordValidationError("팀은 필수입니다.");
-  if (!name) throw new RecordValidationError("이름은 필수입니다.");
-  if (!educationName) throw new RecordValidationError("교육명은 필수입니다.");
-  if (!organizer) throw new RecordValidationError("교육주관은 필수입니다.");
-
-  const startDate = validateDateStr(normalizeStr(record.startDate), "시작일자");
-  const endDate = validateDateStr(normalizeStr(record.endDate), "종료일자");
-
-  if (endDate < startDate) {
-    throw new RecordValidationError("종료일자는 시작일자 이후여야 합니다.");
+/**
+ * Parses a record leniently — only throws if dates are completely unparseable
+ * (in which case the row is skipped). All other invalid values use safe defaults.
+ */
+function parseRecord(record: ExternalEducationRecord): ParsedRecord {
+  const startDate = tryParseDate(record.startDate);
+  const endDate = tryParseDate(record.endDate);
+  if (!startDate || !endDate) {
+    throw new Error("날짜를 파싱할 수 없습니다.");
   }
 
   const days = Number(record.days);
-  if (!Number.isFinite(days) || days <= 0) {
-    throw new RecordValidationError("교육일수는 양수여야 합니다.");
-  }
+  const safeDays = Number.isFinite(days) && days > 0 ? days : 1;
 
   const cost = Number(record.cost);
-  if (!Number.isFinite(cost) || cost < 0) {
-    throw new RecordValidationError("교육비는 0 이상이어야 합니다.");
-  }
+  const safeCost = Number.isFinite(cost) && cost >= 0 ? cost : 0;
 
-  if (certificateRaw !== "Y" && certificateRaw !== "N") {
-    throw new RecordValidationError("이수증은 Y 또는 N이어야 합니다.");
-  }
+  const certRaw = normalizeStr(record.certificate).toUpperCase();
+  const certStatus =
+    certRaw === "Y" ? certificate_status_enum.SUBMITTED : certificate_status_enum.NOT_SUBMITTED;
 
   return {
-    division,
-    team,
-    name,
-    educationType,
-    educationName,
+    name: normalizeStr(record.name),
+    team: normalizeStr(record.team),
+    division: normalizeStr(record.division),
+    educationName: normalizeStr(record.educationName),
+    educationType: normalizeStr(record.educationType),
     startDate,
     endDate,
-    hours: days * 8,
-    cost,
-    organizer,
-    certificateStatus: certificateRaw === "Y" ? certificate_status_enum.SUBMITTED : certificate_status_enum.NOT_SUBMITTED,
+    hours: safeDays * 8,
+    cost: safeCost,
+    organizer: normalizeStr(record.organizer),
+    certificateStatus: certStatus,
   };
 }
 
@@ -112,6 +94,7 @@ export async function bulkUploadExternalEducations(req: AuthenticatedRequest, re
 
     const records = body.records as ExternalEducationRecord[];
 
+    // Collect all names for a single DB lookup
     const nameSet = new Set<string>();
     for (const record of records) {
       const name = normalizeStr(record.name);
@@ -119,48 +102,44 @@ export async function bulkUploadExternalEducations(req: AuthenticatedRequest, re
     }
 
     const matchedUsers = await prisma.users.findMany({
-      where: {
-        name: { in: Array.from(nameSet) },
-        is_active: true,
-      },
+      where: { name: { in: Array.from(nameSet) }, is_active: true },
       select: { id: true, name: true, team: true, department: true },
     });
 
+    // key: "name::team::department"
     const userMap = new Map<string, string>();
     for (const user of matchedUsers) {
-      const key = `${user.name}::${user.team}::${user.department}`;
-      userMap.set(key, user.id);
+      userMap.set(`${user.name}::${user.team}::${user.department}`, user.id);
     }
 
     let insertedCount = 0;
 
     for (const record of records) {
       try {
-        const validated = validateRecord(record);
-        const userKey = `${validated.name}::${validated.team}::${validated.division}`;
-        const userId = userMap.get(userKey);
+        const parsed = parseRecord(record);
+        if (!parsed.name) continue; // can't look up user without a name
 
-        if (!userId) {
-          continue;
-        }
+        const userId = userMap.get(`${parsed.name}::${parsed.team}::${parsed.division}`);
+        if (!userId) continue; // user not found — skip silently
 
         await prisma.external_trainings.create({
           data: {
             user: { connect: { id: userId } },
-            training_name: validated.educationName,
-            education_category: validated.educationType || null,
+            training_name: parsed.educationName || "(무제)",
+            education_category: parsed.educationType || null,
             type: training_type_enum.OFFLINE,
-            start_date: validated.startDate,
-            end_date: validated.endDate,
-            hours: new Prisma.Decimal(validated.hours),
-            cost: validated.cost,
-            institution: validated.organizer,
-            certificate_status: validated.certificateStatus,
+            start_date: parsed.startDate,
+            end_date: parsed.endDate,
+            hours: new Prisma.Decimal(parsed.hours),
+            cost: parsed.cost,
+            institution: parsed.organizer || "-",
+            certificate_status: parsed.certificateStatus,
           },
         });
 
         insertedCount++;
       } catch {
+        // Skip records that can't be saved (e.g. unparseable dates)
         continue;
       }
     }
