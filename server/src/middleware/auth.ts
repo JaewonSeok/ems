@@ -11,6 +11,8 @@ export type AuthUser = {
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
+  /** Populated when an ADMIN is impersonating another user. */
+  originalAdmin?: AuthUser;
 }
 
 export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -24,20 +26,38 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     const token = header.slice("Bearer ".length);
     const payload = verifyAccessToken(token);
 
-    const user = await prisma.users.findUnique({
+    const caller = await prisma.users.findUnique({
       where: { id: payload.sub },
       select: { id: true, email: true, role: true, is_active: true }
     });
 
-    if (!user || !user.is_active) {
+    if (!caller || !caller.is_active) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    };
+    req.user = { id: caller.id, email: caller.email, role: caller.role };
+
+    // ── Impersonation header ───────────────────────────────────────────────
+    // Client skips this header for /auth/ endpoints, so it only arrives for
+    // regular data routes where the admin wants to view as a target user.
+    const impersonateId = req.headers["x-impersonate-user-id"];
+
+    if (impersonateId && typeof impersonateId === "string" && caller.role === role_enum.ADMIN) {
+      const target = await prisma.users.findUnique({
+        where: { id: impersonateId },
+        select: { id: true, email: true, role: true, is_active: true }
+      });
+
+      if (target && target.is_active && target.role !== role_enum.ADMIN) {
+        req.originalAdmin = req.user;
+        req.user = { id: target.id, email: target.email, role: target.role };
+      }
+    }
+
+    // ── Read-only enforcement during impersonation ────────────────────────
+    if (req.originalAdmin && req.method !== "GET") {
+      return res.status(403).json({ message: "impersonation 중에는 읽기만 가능합니다." });
+    }
 
     return next();
   } catch {

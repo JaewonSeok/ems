@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { role_enum } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { createAccessToken, createRefreshToken, verifyRefreshToken } from "../utils/jwt";
@@ -204,6 +205,58 @@ export async function googleCallback(req: Request, res: Response) {
   } catch (err) {
     console.error("googleCallback error:", err);
     return redirectError("server_error");
+  }
+}
+
+export async function searchImpersonableUsers(req: AuthenticatedRequest, res: Response) {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    const users = await prisma.users.findMany({
+      where: {
+        is_active: true,
+        role: { not: role_enum.ADMIN },
+        ...(q ? { name: { contains: q } } : {}),
+      },
+      select: { id: true, name: true, email: true, department: true, team: true, employee_id: true },
+      orderBy: { name: "asc" },
+      take: 30,
+    });
+    return res.status(200).json(users);
+  } catch (error) {
+    console.error("searchImpersonableUsers error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function startImpersonation(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { targetEmployeeId } = req.body as { targetEmployeeId?: string };
+    if (!targetEmployeeId) {
+      return res.status(400).json({ message: "targetEmployeeId is required" });
+    }
+    const target = await prisma.users.findUnique({
+      where: { id: targetEmployeeId },
+      select: {
+        id: true, name: true, email: true, department: true, team: true,
+        role: true, is_active: true, employee_id: true, position_title: true,
+      },
+    });
+    if (!target || !target.is_active || target.role === role_enum.ADMIN) {
+      return res.status(404).json({ message: "대상 직원을 찾을 수 없습니다." });
+    }
+    return res.status(200).json({
+      id: target.id,
+      name: target.name,
+      email: target.email,
+      department: target.department,
+      team: target.team,
+      role: target.role,
+      employee_id: target.employee_id,
+      position_title: target.position_title ?? null,
+    });
+  } catch (error) {
+    console.error("startImpersonation error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "../store/authStore";
+import { useImpersonationStore } from "../store/impersonationStore";
 
 // Vercel 배포: 동일 도메인이므로 /api (상대경로)
 // 로컬 개발: vite.config.ts 프록시가 /api → localhost:4000 으로 처리
@@ -12,6 +13,17 @@ http.interceptors.request.use((config) => {
   if (accessToken && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+
+  // Inject impersonation header — skip for /auth/ endpoints so that
+  // impersonation control APIs always run with the real admin identity.
+  const url = String(config.url ?? "");
+  if (!url.includes("/auth/")) {
+    const { targetUser } = useImpersonationStore.getState();
+    if (targetUser) {
+      config.headers["X-Impersonate-User-Id"] = targetUser.id;
+    }
+  }
+
   return config;
 });
 
