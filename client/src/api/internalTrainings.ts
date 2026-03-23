@@ -34,11 +34,7 @@ export async function uploadInternalTrainingCertificate(id: string, file: File) 
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await http.post<InternalTrainingRecord>(`/internal-trainings/${id}/certificate`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data"
-    }
-  });
+  const response = await http.post<InternalTrainingRecord>(`/internal-trainings/${id}/certificate`, formData);
 
   return response.data;
 }

@@ -494,7 +494,7 @@ export async function uploadInternalTrainingCertificate(req: AuthenticatedReques
 
     if (uploadError) {
       console.error("Supabase Storage upload error:", uploadError);
-      return res.status(500).json({ message: "Failed to upload certificate to storage" });
+      return res.status(500).json({ message: `수료증 업로드 실패: ${uploadError.message}` });
     }
 
     const updated = await prisma.internal_trainings.update({

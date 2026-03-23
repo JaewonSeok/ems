@@ -67,10 +67,6 @@ const TYPE_COLOR: Record<"OFFLINE" | "ONLINE", string> = {
 };
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
   if (typeof error === "object" && error !== null) {
     const maybeResponse = error as {
       response?: {
@@ -84,6 +80,10 @@ function getErrorMessage(error: unknown) {
     if (typeof message === "string" && message.trim()) {
       return message;
     }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
   }
 
   return "통계 데이터를 불러오지 못했습니다.";

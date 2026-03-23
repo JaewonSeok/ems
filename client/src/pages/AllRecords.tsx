@@ -43,10 +43,6 @@ const sortableColumns: Array<{ key: AllRecordsSortField; label: string }> = [
 ];
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
   if (typeof error === "object" && error !== null) {
     const maybeResponse = error as {
       response?: {
@@ -60,6 +56,10 @@ function getErrorMessage(error: unknown) {
     if (typeof message === "string" && message.trim()) {
       return message;
     }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
   }
 
   return "전체 이력 처리 중 오류가 발생했습니다.";
