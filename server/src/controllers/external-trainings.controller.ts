@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { Prisma, approval_status_enum, certificate_status_enum, role_enum, training_type_enum } from "@prisma/client";
 import { Response } from "express";
 import { prisma } from "../config/prisma";
-import { supabase, CERTIFICATES_BUCKET } from "../config/supabase";
+import { getSupabase, CERTIFICATES_BUCKET } from "../config/supabase";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { extensionByMime, validateFileBuffer } from "../middleware/upload";
 
@@ -516,7 +516,7 @@ export async function deleteExternalTraining(req: AuthenticatedRequest, res: Res
     await prisma.external_trainings.delete({ where: { id } });
 
     if (existing.certificate_file) {
-      await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
     }
 
     return res.status(200).json({ message: "Deleted" });
@@ -557,13 +557,13 @@ export async function uploadExternalTrainingCertificate(req: AuthenticatedReques
 
     // 이전 파일 삭제
     if (existing.certificate_file) {
-      await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
     }
 
     // Supabase Storage에 업로드
     const ext = extensionByMime(file.mimetype);
     const storagePath = `external-trainings/${Date.now()}-${randomUUID()}${ext}`;
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await getSupabase().storage
       .from(CERTIFICATES_BUCKET)
       .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
 
@@ -617,7 +617,7 @@ export async function deleteExternalTrainingCertificate(req: AuthenticatedReques
     }
 
     // Supabase Storage에서 파일 삭제 (실패해도 DB 업데이트는 진행)
-    await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
 
     const updated = await prisma.external_trainings.update({
       where: { id },
@@ -664,7 +664,7 @@ export async function downloadExternalTrainingCertificate(req: AuthenticatedRequ
     }
 
     // Supabase Storage에서 파일 다운로드
-    const { data, error } = await supabase.storage.from(CERTIFICATES_BUCKET).download(existing.certificate_file);
+    const { data, error } = await getSupabase().storage.from(CERTIFICATES_BUCKET).download(existing.certificate_file);
 
     if (error || !data) {
       console.error("Supabase Storage download error:", error);
