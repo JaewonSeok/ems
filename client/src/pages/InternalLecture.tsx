@@ -136,7 +136,8 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function InternalLecture() {
-  const { effectiveUser: user, isAdmin } = useCurrentUser();
+  const { effectiveUser: user } = useCurrentUser();
+  const isAdmin = user?.role === "ADMIN";
 
   const [items, setItems] = useState<InternalLectureRecord[]>([]);
   const [page, setPage] = useState(1);

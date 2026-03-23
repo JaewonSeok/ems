@@ -282,7 +282,8 @@ function approvalBadgeClass(status: ApprovalStatus) {
 }
 
 export default function ExternalTraining() {
-  const { effectiveUser: user, isAdmin, isImpersonating } = useCurrentUser();
+  const { effectiveUser: user, isImpersonating } = useCurrentUser();
+  const isAdmin = user?.role === "ADMIN"; // effectiveUser 기준 — impersonation 중에는 false
   const canEdit = !isImpersonating;
 
   const [items, setItems] = useState<ExternalTrainingRecord[]>([]);

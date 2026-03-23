@@ -169,7 +169,8 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function InternalTraining() {
-  const { effectiveUser: user, isAdmin, isImpersonating } = useCurrentUser();
+  const { effectiveUser: user, isImpersonating } = useCurrentUser();
+  const isAdmin = user?.role === "ADMIN";
   const canEdit = !isImpersonating;
 
   const [items, setItems] = useState<InternalTrainingRecord[]>([]);
