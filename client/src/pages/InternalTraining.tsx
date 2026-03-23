@@ -167,7 +167,8 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function InternalTraining() {
-  const { effectiveUser: user, isAdmin } = useCurrentUser();
+  const { effectiveUser: user, isAdmin, isImpersonating } = useCurrentUser();
+  const canEdit = !isImpersonating;
 
   const [items, setItems] = useState<InternalTrainingRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -505,14 +506,16 @@ export default function InternalTraining() {
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-xs"
-                          title="수료증 업로드"
-                          disabled={rowActionLoadingId === item.id}
-                          onClick={() => onClickUpload(item)}
-                        >
-                          📎 수료증 업로드
-                        </button>
+                        {canEdit && (
+                          <button
+                            className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            title="수료증 업로드"
+                            disabled={rowActionLoadingId === item.id}
+                            onClick={() => onClickUpload(item)}
+                          >
+                            📎 수료증 업로드
+                          </button>
+                        )}
                         <button
                           className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
                           title="수료증 다운로드"

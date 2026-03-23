@@ -280,7 +280,8 @@ function approvalBadgeClass(status: ApprovalStatus) {
 }
 
 export default function ExternalTraining() {
-  const { effectiveUser: user, isAdmin } = useCurrentUser();
+  const { effectiveUser: user, isAdmin, isImpersonating } = useCurrentUser();
+  const canEdit = !isImpersonating;
 
   const [items, setItems] = useState<ExternalTrainingRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -656,7 +657,7 @@ export default function ExternalTraining() {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">사외교육</h2>
         <div className="flex gap-2">
-          {!isAdmin && (
+          {!isAdmin && canEdit && (
             <button onClick={openCreateModal} className="rounded bg-blue-700 px-3 py-2 text-sm text-white">
               + 사외교육 신청
             </button>
@@ -760,14 +761,16 @@ export default function ExternalTraining() {
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-xs"
-                          title="수료증 업로드"
-                          disabled={rowActionLoadingId === item.id}
-                          onClick={() => onClickUpload(item)}
-                        >
-                          📎 수료증 업로드
-                        </button>
+                        {canEdit && (
+                          <button
+                            className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            title="수료증 업로드"
+                            disabled={rowActionLoadingId === item.id}
+                            onClick={() => onClickUpload(item)}
+                          >
+                            📎 수료증 업로드
+                          </button>
+                        )}
                         <button
                           className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
                           title="수료증 다운로드"
