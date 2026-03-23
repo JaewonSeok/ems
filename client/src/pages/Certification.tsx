@@ -6,7 +6,7 @@ import {
   listCertifications,
   updateCertification
 } from "../api/certifications";
-import { useAuthStore } from "../store/authStore";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import { CertificationFormPayload, CertificationRecord, CertificationUserOption } from "../types/certification";
 
 const PAGE_LIMIT = 10;
@@ -145,8 +145,7 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function Certification() {
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "ADMIN";
+  const { effectiveUser: user, isAdmin } = useCurrentUser();
 
   const [items, setItems] = useState<CertificationRecord[]>([]);
   const [page, setPage] = useState(1);

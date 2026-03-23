@@ -27,7 +27,7 @@ export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { clearSession } = useAuthStore();
-  const { stopImpersonation } = useImpersonationStore();
+  const { targetUser, stopImpersonation } = useImpersonationStore();
   const { effectiveUser, realUser, isAdmin, isImpersonating } = useCurrentUser();
   const [showModal, setShowModal] = useState(false);
 
@@ -101,7 +101,9 @@ export default function MainLayout() {
 
       <div className="flex flex-col bg-slate-50">
         <ImpersonationBanner />
-        <main className="p-6 flex-1">
+        {/* key changes when impersonation starts/stops → forces full page remount so
+            every page's useEffect re-runs with the correct X-Impersonate-User-Id header */}
+        <main key={targetUser?.id ?? ""} className="p-6 flex-1">
           <Outlet />
         </main>
       </div>

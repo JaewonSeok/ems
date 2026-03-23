@@ -6,7 +6,7 @@ import {
   listInternalLectures,
   updateInternalLecture
 } from "../api/internalLectures";
-import { useAuthStore } from "../store/authStore";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import { InternalLectureFormPayload, InternalLectureRecord, InternalLectureUserOption, TrainingType } from "../types/internalLecture";
 
 const PAGE_LIMIT = 10;
@@ -136,8 +136,7 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function InternalLecture() {
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "ADMIN";
+  const { effectiveUser: user, isAdmin } = useCurrentUser();
 
   const [items, setItems] = useState<InternalLectureRecord[]>([]);
   const [page, setPage] = useState(1);

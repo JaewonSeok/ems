@@ -10,7 +10,7 @@ import {
   updateExternalTraining,
   uploadExternalTrainingCertificate
 } from "../api/externalTrainings";
-import { useAuthStore } from "../store/authStore";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import {
   ApprovalStatus,
   ExternalTrainingFormPayload,
@@ -280,8 +280,7 @@ function approvalBadgeClass(status: ApprovalStatus) {
 }
 
 export default function ExternalTraining() {
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "ADMIN";
+  const { effectiveUser: user, isAdmin } = useCurrentUser();
 
   const [items, setItems] = useState<ExternalTrainingRecord[]>([]);
   const [page, setPage] = useState(1);

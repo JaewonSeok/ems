@@ -8,7 +8,7 @@ import {
   updateInternalTraining,
   uploadInternalTrainingCertificate
 } from "../api/internalTrainings";
-import { useAuthStore } from "../store/authStore";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import { InternalTrainingFormPayload, InternalTrainingRecord, InternalTrainingUserOption, TrainingType } from "../types/internalTraining";
 
 const PAGE_LIMIT = 10;
@@ -167,8 +167,7 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function InternalTraining() {
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "ADMIN";
+  const { effectiveUser: user, isAdmin } = useCurrentUser();
 
   const [items, setItems] = useState<InternalTrainingRecord[]>([]);
   const [page, setPage] = useState(1);
