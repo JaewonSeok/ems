@@ -55,8 +55,13 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     }
 
     // ── Read-only enforcement during impersonation ────────────────────────
+    // Certificate upload/delete are allowed even during impersonation so that
+    // admins can manage employee certificates while viewing the employee view.
     if (req.originalAdmin && req.method !== "GET") {
-      return res.status(403).json({ message: "impersonation 중에는 읽기만 가능합니다." });
+      const isCertificateEndpoint = req.path.includes("/certificate");
+      if (!isCertificateEndpoint) {
+        return res.status(403).json({ message: "impersonation 중에는 읽기만 가능합니다." });
+      }
     }
 
     return next();

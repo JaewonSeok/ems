@@ -818,31 +818,29 @@ export default function ExternalTraining() {
                         {!isAdmin && (
                           <>
                             {item.certificate_file ? (
-                              <button
-                                className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700"
-                                disabled={rowActionLoadingId === item.id}
-                                onClick={() => void openUserPreview(item)}
-                              >
-                                👁 수료증 보기
-                              </button>
-                            ) : (
-                              canEdit && (
+                              <>
                                 <button
-                                  className="rounded border border-slate-300 px-2 py-1 text-xs"
+                                  className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700"
                                   disabled={rowActionLoadingId === item.id}
-                                  onClick={() => onClickUpload(item)}
+                                  onClick={() => void openUserPreview(item)}
                                 >
-                                  📎 수료증 업로드
+                                  👁 수료증 보기
                                 </button>
-                              )
-                            )}
-                            {canEdit && item.certificate_file && (
+                                <button
+                                  className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                  disabled={rowActionLoadingId === item.id}
+                                  onClick={() => void onDeleteCertificate(item)}
+                                >
+                                  🗑 수료증 삭제
+                                </button>
+                              </>
+                            ) : (
                               <button
-                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                className="rounded border border-slate-300 px-2 py-1 text-xs"
                                 disabled={rowActionLoadingId === item.id}
-                                onClick={() => void onDeleteCertificate(item)}
+                                onClick={() => onClickUpload(item)}
                               >
-                                🗑 수료증 삭제
+                                📎 수료증 업로드
                               </button>
                             )}
                           </>
