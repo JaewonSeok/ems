@@ -1,10 +1,10 @@
-import fs from "fs/promises";
-import path from "path";
+import { randomUUID } from "crypto";
 import { Prisma, certificate_status_enum, role_enum, training_type_enum } from "@prisma/client";
 import { Response } from "express";
 import { prisma } from "../config/prisma";
+import { supabase, CERTIFICATES_BUCKET } from "../config/supabase";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { resolveStoredPath, toRelativeInternalTrainingPath, validateStoredFileSignature } from "../middleware/upload";
+import { extensionByMime, validateFileBuffer } from "../middleware/upload";
 
 class ValidationError extends Error {}
 
@@ -441,12 +441,7 @@ export async function deleteInternalTraining(req: AuthenticatedRequest, res: Res
     await prisma.internal_trainings.delete({ where: { id } });
 
     if (existing.certificate_file) {
-      try {
-        const abs = resolveStoredPath(existing.certificate_file);
-        await fs.unlink(abs);
-      } catch {
-        // ignore cleanup failure
-      }
+      await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
     }
 
     return res.status(200).json({ message: "Deleted" });
@@ -469,7 +464,7 @@ export async function uploadInternalTrainingCertificate(req: AuthenticatedReques
     const { id } = req.params;
     const file = req.file;
 
-    if (!file) {
+    if (!file?.buffer) {
       return res.status(400).json({ message: "file is required" });
     }
 
@@ -481,39 +476,31 @@ export async function uploadInternalTrainingCertificate(req: AuthenticatedReques
 
     assertRecordAccess(req, existing);
 
-    const signatureOk = await validateStoredFileSignature(file.path, file.mimetype);
-
-    if (!signatureOk) {
-      await fs.unlink(file.path).catch(() => undefined);
+    if (!validateFileBuffer(file.buffer, file.mimetype)) {
       return res.status(400).json({ message: "Uploaded file signature is invalid for its type" });
     }
 
-    const relativePath = toRelativeInternalTrainingPath(file.filename);
-
+    // 이전 파일 삭제
     if (existing.certificate_file) {
-      try {
-        const previous = resolveStoredPath(existing.certificate_file);
-        await fs.unlink(previous);
-      } catch {
-        // ignore previous file cleanup failure
-      }
+      await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    }
+
+    // Supabase Storage에 업로드
+    const ext = extensionByMime(file.mimetype);
+    const storagePath = `internal-trainings/${Date.now()}-${randomUUID()}${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(CERTIFICATES_BUCKET)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) {
+      console.error("Supabase Storage upload error:", uploadError);
+      return res.status(500).json({ message: "Failed to upload certificate to storage" });
     }
 
     const updated = await prisma.internal_trainings.update({
       where: { id },
-      data: {
-        certificate_file: relativePath,
-        certificate_status: "SUBMITTED"
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            employee_id: true
-          }
-        }
-      }
+      data: { certificate_file: storagePath, certificate_status: "SUBMITTED" },
+      include: { user: { select: { id: true, name: true, employee_id: true } } }
     });
 
     return res.status(200).json(mapRecord(updated));
@@ -521,11 +508,9 @@ export async function uploadInternalTrainingCertificate(req: AuthenticatedReques
     if (error instanceof Error && error.message === "Unauthorized") {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
     if (error instanceof Error && error.message === "Forbidden") {
       return res.status(403).json({ message: "Forbidden" });
     }
-
     console.error("uploadInternalTrainingCertificate error:", error);
     return res.status(500).json({ message: "Failed to upload certificate" });
   }
@@ -546,12 +531,8 @@ export async function deleteInternalTrainingCertificate(req: AuthenticatedReques
       return res.status(404).json({ message: "No certificate uploaded" });
     }
 
-    try {
-      const absPath = resolveStoredPath(existing.certificate_file);
-      await fs.unlink(absPath);
-    } catch {
-      // ignore file cleanup failure
-    }
+    // Supabase Storage에서 파일 삭제 (실패해도 DB 업데이트는 진행)
+    await supabase.storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
 
     const updated = await prisma.internal_trainings.update({
       where: { id },
@@ -587,19 +568,28 @@ export async function downloadInternalTrainingCertificate(req: AuthenticatedRequ
       return res.status(404).json({ message: "No certificate uploaded" });
     }
 
-    const absPath = resolveStoredPath(existing.certificate_file);
-    await fs.access(absPath);
+    // Supabase Storage에서 파일 다운로드
+    const { data, error } = await supabase.storage.from(CERTIFICATES_BUCKET).download(existing.certificate_file);
 
-    return res.download(absPath, path.basename(absPath));
+    if (error || !data) {
+      console.error("Supabase Storage download error:", error);
+      return res.status(404).json({ message: "Certificate file not found" });
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const fileName = existing.certificate_file.split("/").pop() ?? "certificate";
+    const contentType = data.type || "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    return res.send(buffer);
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
     if (error instanceof Error && error.message === "Forbidden") {
       return res.status(403).json({ message: "Forbidden" });
     }
-
     console.error("downloadInternalTrainingCertificate error:", error);
     return res.status(404).json({ message: "Certificate file not found" });
   }
