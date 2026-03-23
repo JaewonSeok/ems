@@ -4,6 +4,7 @@ import {
   approveExternalTraining,
   createExternalTraining,
   deleteExternalTraining,
+  deleteExternalTrainingCertificate,
   downloadExternalTrainingCertificate,
   listExternalTrainingUserOptions,
   listExternalTrainings,
@@ -27,6 +28,7 @@ externalTrainingRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteE
 
 externalTrainingRoutes.post("/:id/certificate", externalTrainingCertificateUpload, uploadExternalTrainingCertificate);
 externalTrainingRoutes.get("/:id/certificate", downloadExternalTrainingCertificate);
+externalTrainingRoutes.delete("/:id/certificate", deleteExternalTrainingCertificate);
 
 externalTrainingRoutes.put("/:id/approve", rbacMiddleware([role_enum.ADMIN]), approveExternalTraining);
 externalTrainingRoutes.put("/:id/reject", rbacMiddleware([role_enum.ADMIN]), rejectExternalTraining);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInternalTraining,
   deleteInternalTraining,
+  deleteInternalTrainingCertificate,
   downloadInternalTrainingCertificate,
   listInternalTrainingUserOptions,
   listInternalTrainings,
@@ -9,6 +10,7 @@ import {
   uploadInternalTrainingCertificate
 } from "../api/internalTrainings";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import CertificatePreviewModal from "../components/shared/CertificatePreviewModal";
 import { InternalTrainingFormPayload, InternalTrainingRecord, InternalTrainingUserOption, TrainingType } from "../types/internalTraining";
 
 const PAGE_LIMIT = 10;
@@ -193,6 +195,11 @@ export default function InternalTraining() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [userOptions, setUserOptions] = useState<InternalTrainingUserOption[]>([]);
+
+  const [userPreviewOpen, setUserPreviewOpen] = useState(false);
+  const [userPreviewUrl, setUserPreviewUrl] = useState<string | null>(null);
+  const [userPreviewFileName, setUserPreviewFileName] = useState("");
+  const [userPreviewContentType, setUserPreviewContentType] = useState("");
 
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -395,6 +402,51 @@ export default function InternalTraining() {
     }
   }
 
+  async function openUserPreview(record: InternalTrainingRecord) {
+    if (!record.certificate_file) return;
+    setUserPreviewOpen(true);
+    setRowActionLoadingId(record.id);
+    if (userPreviewUrl) {
+      URL.revokeObjectURL(userPreviewUrl);
+      setUserPreviewUrl(null);
+    }
+    try {
+      const file = await downloadInternalTrainingCertificate(record.id);
+      setUserPreviewUrl(URL.createObjectURL(file.blob));
+      setUserPreviewFileName(file.fileName);
+      setUserPreviewContentType(file.blob.type);
+    } catch (err) {
+      window.alert(getErrorMessage(err));
+      setUserPreviewOpen(false);
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
+  function closeUserPreview() {
+    setUserPreviewOpen(false);
+    if (userPreviewUrl) {
+      URL.revokeObjectURL(userPreviewUrl);
+      setUserPreviewUrl(null);
+    }
+    setUserPreviewFileName("");
+    setUserPreviewContentType("");
+  }
+
+  async function onDeleteCertificate(record: InternalTrainingRecord) {
+    const confirmed = window.confirm("수료증을 삭제하시겠습니까?");
+    if (!confirmed) return;
+    setRowActionLoadingId(record.id);
+    try {
+      await deleteInternalTrainingCertificate(record.id);
+      refreshList();
+    } catch (err) {
+      window.alert(getErrorMessage(err));
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
   function onClickUpload(record: InternalTrainingRecord) {
     setUploadTargetId(record.id);
 
@@ -506,43 +558,75 @@ export default function InternalTraining() {
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        {canEdit && (
-                          <button
-                            className="rounded border border-slate-300 px-2 py-1 text-xs"
-                            title="수료증 업로드"
-                            disabled={rowActionLoadingId === item.id}
-                            onClick={() => onClickUpload(item)}
-                          >
-                            📎 수료증 업로드
-                          </button>
+                        {/* ── USER / Impersonation view ── */}
+                        {!isAdmin && (
+                          <>
+                            {item.certificate_file ? (
+                              <button
+                                className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700"
+                                disabled={rowActionLoadingId === item.id}
+                                onClick={() => void openUserPreview(item)}
+                              >
+                                👁 수료증 보기
+                              </button>
+                            ) : (
+                              canEdit && (
+                                <button
+                                  className="rounded border border-slate-300 px-2 py-1 text-xs"
+                                  disabled={rowActionLoadingId === item.id}
+                                  onClick={() => onClickUpload(item)}
+                                >
+                                  📎 수료증 업로드
+                                </button>
+                              )
+                            )}
+                            {canEdit && item.certificate_file && (
+                              <button
+                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                disabled={rowActionLoadingId === item.id}
+                                onClick={() => void onDeleteCertificate(item)}
+                              >
+                                🗑 수료증 삭제
+                              </button>
+                            )}
+                          </>
                         )}
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-                          title="수료증 다운로드"
-                          disabled={rowActionLoadingId === item.id || !item.certificate_file}
-                          onClick={() => void onDownload(item)}
-                        >
-                          ⬇ 수료증 다운로드
-                        </button>
+                        {/* ── ADMIN view (unchanged) ── */}
                         {isAdmin && (
-                          <button
-                            className="rounded border border-slate-300 px-2 py-1 text-xs"
-                            title="수정"
-                            disabled={rowActionLoadingId === item.id}
-                            onClick={() => openEditModal(item)}
-                          >
-                            ✏ 수정
-                          </button>
-                        )}
-                        {isAdmin && (
-                          <button
-                            className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
-                            title="삭제"
-                            disabled={rowActionLoadingId === item.id}
-                            onClick={() => void onDelete(item)}
-                          >
-                            🗑 삭제
-                          </button>
+                          <>
+                            <button
+                              className="rounded border border-slate-300 px-2 py-1 text-xs"
+                              title="수료증 업로드"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => onClickUpload(item)}
+                            >
+                              📎 수료증 업로드
+                            </button>
+                            <button
+                              className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+                              title="수료증 다운로드"
+                              disabled={rowActionLoadingId === item.id || !item.certificate_file}
+                              onClick={() => void onDownload(item)}
+                            >
+                              ⬇ 수료증 다운로드
+                            </button>
+                            <button
+                              className="rounded border border-slate-300 px-2 py-1 text-xs"
+                              title="수정"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => openEditModal(item)}
+                            >
+                              ✏ 수정
+                            </button>
+                            <button
+                              className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                              title="삭제"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => void onDelete(item)}
+                            >
+                              🗑 삭제
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -733,6 +817,21 @@ export default function InternalTraining() {
           </div>
         </div>
       ) : null}
+
+      {userPreviewOpen && userPreviewUrl && (
+        <CertificatePreviewModal
+          url={userPreviewUrl}
+          fileName={userPreviewFileName}
+          contentType={userPreviewContentType}
+          onClose={closeUserPreview}
+          onDownload={() => {
+            const a = document.createElement("a");
+            a.href = userPreviewUrl;
+            a.download = userPreviewFileName;
+            a.click();
+          }}
+        />
+      )}
     </section>
   );
 }

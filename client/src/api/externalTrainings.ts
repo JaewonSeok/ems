@@ -59,6 +59,11 @@ export async function downloadExternalTrainingCertificate(id: string) {
   };
 }
 
+export async function deleteExternalTrainingCertificate(id: string) {
+  const response = await http.delete<ExternalTrainingRecord>(`/external-trainings/${id}/certificate`);
+  return response.data;
+}
+
 export async function approveExternalTraining(id: string) {
   const response = await http.put<ExternalTrainingRecord>(`/external-trainings/${id}/approve`);
   return response.data;

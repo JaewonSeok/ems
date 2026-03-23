@@ -616,6 +616,57 @@ export async function uploadExternalTrainingCertificate(req: AuthenticatedReques
   }
 }
 
+export async function deleteExternalTrainingCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findExternalTrainingById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "External training not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    try {
+      const absPath = resolveStoredPath(existing.certificate_file);
+      await fs.unlink(absPath);
+    } catch {
+      // ignore file cleanup failure
+    }
+
+    const updated = await prisma.external_trainings.update({
+      where: { id },
+      data: {
+        certificate_file: null,
+        certificate_status: "NOT_SUBMITTED",
+        approval_status: "PENDING",
+        approval_comment: null,
+        approved_by: null,
+        approved_at: null
+      },
+      include: {
+        user: { select: { id: true, name: true, employee_id: true } },
+        approver: { select: { id: true, name: true } }
+      }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("deleteExternalTrainingCertificate error:", error);
+    return res.status(500).json({ message: "Failed to delete certificate" });
+  }
+}
+
 export async function downloadExternalTrainingCertificate(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;

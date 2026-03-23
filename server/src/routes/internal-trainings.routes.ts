@@ -3,6 +3,7 @@ import { role_enum } from "@prisma/client";
 import {
   createInternalTraining,
   deleteInternalTraining,
+  deleteInternalTrainingCertificate,
   downloadInternalTrainingCertificate,
   listInternalTrainingUserOptions,
   listInternalTrainings,
@@ -24,5 +25,6 @@ internalTrainingRoutes.put("/:id", rbacMiddleware([role_enum.ADMIN]), updateInte
 internalTrainingRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteInternalTraining);
 internalTrainingRoutes.post("/:id/certificate", internalTrainingCertificateUpload, uploadInternalTrainingCertificate);
 internalTrainingRoutes.get("/:id/certificate", downloadInternalTrainingCertificate);
+internalTrainingRoutes.delete("/:id/certificate", deleteInternalTrainingCertificate);
 
 export default internalTrainingRoutes;

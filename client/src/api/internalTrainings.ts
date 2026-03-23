@@ -43,6 +43,11 @@ export async function uploadInternalTrainingCertificate(id: string, file: File) 
   return response.data;
 }
 
+export async function deleteInternalTrainingCertificate(id: string) {
+  const response = await http.delete<InternalTrainingRecord>(`/internal-trainings/${id}/certificate`);
+  return response.data;
+}
+
 export async function downloadInternalTrainingCertificate(id: string) {
   const response = await http.get<Blob>(`/internal-trainings/${id}/certificate`, {
     responseType: "blob"

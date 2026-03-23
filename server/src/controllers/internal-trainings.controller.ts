@@ -531,6 +531,47 @@ export async function uploadInternalTrainingCertificate(req: AuthenticatedReques
   }
 }
 
+export async function deleteInternalTrainingCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findInternalTrainingById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Internal training not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    try {
+      const absPath = resolveStoredPath(existing.certificate_file);
+      await fs.unlink(absPath);
+    } catch {
+      // ignore file cleanup failure
+    }
+
+    const updated = await prisma.internal_trainings.update({
+      where: { id },
+      data: { certificate_file: null, certificate_status: "NOT_SUBMITTED" },
+      include: { user: { select: { id: true, name: true, employee_id: true } } }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("deleteInternalTrainingCertificate error:", error);
+    return res.status(500).json({ message: "Failed to delete certificate" });
+  }
+}
+
 export async function downloadInternalTrainingCertificate(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
