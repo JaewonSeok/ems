@@ -37,19 +37,39 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 space-y-4">
-        <h1 className="text-2xl font-bold">EMS 로그인</h1>
-        <p className="text-sm text-slate-500">Google Workspace 계정으로 로그인하세요.</p>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100">
+      <div className="w-full max-w-sm rounded-2xl bg-white/90 backdrop-blur-sm shadow-lg p-8">
 
-        {googleError ? <p className="text-sm text-red-600">{googleError}</p> : null}
+        {/* ── Logo / Brand ── */}
+        <div className="flex flex-col items-center gap-3 mb-6">
+          {/* Graduation cap icon */}
+          <svg viewBox="0 0 64 64" className="w-16 h-16" aria-hidden="true">
+            <rect width="64" height="64" rx="14" fill="#1d4ed8"/>
+            <path d="M32 10 L54 21 L32 32 L10 21 Z" fill="white"/>
+            <path d="M21 24 L21 39 C21 45 26 49 32 49 C38 49 43 45 43 39 L43 24"
+                  fill="rgba(255,255,255,0.82)"/>
+            <line x1="54" y1="21" x2="54" y2="38"
+                  stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="54" cy="42" r="4.5" fill="white"/>
+          </svg>
 
+          <div className="text-center">
+            <p className="text-xl font-bold text-slate-800">교육 관리 시스템</p>
+            <p className="text-xs text-slate-400 tracking-wider uppercase mt-0.5">
+              Education Management System
+            </p>
+          </div>
+        </div>
+
+        <hr className="border-slate-200 mb-6" />
+
+        {/* ── Google Login Button ── */}
         <button
           type="button"
           onClick={() => { window.location.href = `${API_BASE_URL}/auth/google`; }}
-          className="w-full rounded border border-slate-300 bg-white text-slate-700 px-3 py-3 flex items-center justify-center gap-2 hover:bg-slate-50"
+          className="w-full rounded-lg border border-slate-200 bg-white text-slate-700 px-4 py-3 flex items-center justify-center gap-3 hover:bg-slate-50 hover:shadow transition font-medium text-sm"
         >
-          <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" aria-hidden="true">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
@@ -57,6 +77,18 @@ export default function Login() {
           </svg>
           Google 계정으로 로그인
         </button>
+
+        {/* ── Error message ── */}
+        {googleError ? (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-600 text-center">{googleError}</p>
+          </div>
+        ) : null}
+
+        {/* ── Footer ── */}
+        <p className="text-xs text-slate-400 text-center pt-6">
+          © 2026 사내 교육 관리 시스템
+        </p>
       </div>
     </div>
   );
