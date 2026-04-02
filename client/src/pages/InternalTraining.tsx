@@ -139,7 +139,7 @@ function buildFormPayload(form: FormState, admin: boolean, isEdit = false): Inte
     end_date: endDate,
     hours,
     institution,
-    credits
+    credits: admin ? credits : null
   };
 
   if (admin) {
@@ -779,17 +779,19 @@ export default function InternalTraining() {
                     required
                   />
                 </label>
-                <label className="space-y-1">
-                  <span className="text-sm text-slate-700">학점</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={formState.credits}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
+                {isAdmin && (
+                  <label className="space-y-1">
+                    <span className="text-sm text-slate-700">학점</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formState.credits}
+                      onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                )}
                 {formMode === "edit" && (
                   <label className="space-y-1">
                     <span className="text-sm text-slate-700">수료증상태</span>
