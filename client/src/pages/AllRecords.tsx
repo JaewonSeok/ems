@@ -29,6 +29,7 @@ const categoryOptions: Array<{ value: AllRecordsCategoryFilter; label: string }>
 
 const sortableColumns: Array<{ key: AllRecordsSortField; label: string }> = [
   { key: "employee_name", label: "이름" },
+  { key: "employee_id", label: "사번" },
   { key: "department", label: "부서" },
   { key: "team", label: "팀" },
   { key: "category", label: "카테고리" },
@@ -404,7 +405,7 @@ export default function AllRecords() {
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
         <input
           type="search"
-          placeholder="교육명/강의명/자격증명/이름 검색"
+          placeholder="교육명/강의명/자격증명/이름/사번 검색"
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
@@ -437,7 +438,7 @@ export default function AllRecords() {
         </article>
       ) : (
         <article className="rounded-xl border border-slate-200 bg-white p-4 overflow-auto">
-          <table className="w-full min-w-[1640px] text-sm">
+          <table className="w-full min-w-[1740px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left">
                 {sortableColumns.map((column) => (
@@ -454,7 +455,7 @@ export default function AllRecords() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-slate-500">
+                  <td colSpan={14} className="py-8 text-center text-slate-500">
                     조회된 이력이 없습니다.
                   </td>
                 </tr>
@@ -468,6 +469,7 @@ export default function AllRecords() {
                   return (
                     <tr key={item.id} className="border-b border-slate-100 last:border-b-0">
                       <td className="py-2 pr-3">{item.employee_name}</td>
+                      <td className="py-2 pr-3">{item.employee_id}</td>
                       <td className="py-2 pr-3">{item.department}</td>
                       <td className="py-2 pr-3">{item.team}</td>
                       <td className="py-2 pr-3">
@@ -476,7 +478,7 @@ export default function AllRecords() {
                         </span>
                       </td>
                       <td className="py-2 pr-3">{item.title}</td>
-                      <td className="py-2 pr-3">{item.type ?? "-"}</td>
+                      <td className="py-2 pr-3">{item.type === "OFFLINE" ? "오프라인" : item.type === "ONLINE" ? "온라인" : "-"}</td>
                       <td className="py-2 pr-3">{item.start_date ?? "-"}</td>
                       <td className="py-2 pr-3">{item.end_date ?? "-"}</td>
                       <td className="py-2 pr-3">{formatNumber(item.hours)}</td>
@@ -528,7 +530,7 @@ export default function AllRecords() {
         </article>
       )}
 
-      <footer className="rounded-xl border border-slate-200 bg-white p-4">
+      {!loading && !error && <footer className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <p className="text-sm text-slate-600">총 {new Intl.NumberFormat("ko-KR").format(totalCount)}건</p>
           <div className="flex items-center gap-2">
@@ -559,7 +561,7 @@ export default function AllRecords() {
             </button>
           </div>
         </div>
-      </footer>
+      </footer>}
     </section>
   );
 }

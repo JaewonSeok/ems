@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { bulkUploadExternalEducations } from "../api/educations";
 import { downloadBulkUploadTemplate, uploadBulkUploadFile } from "../api/bulkUpload";
 import { BulkUploadCategory, BulkUploadResult } from "../types/bulkUpload";
-import type { ExternalEducationRowData } from "../types/externalBulkUpload";
+import type { BulkUploadExternalResponse, ExternalEducationRowData } from "../types/externalBulkUpload";
 import { downloadExternalEducationTemplate } from "../utils/externalEducationTemplate";
 import {
   parseExternalEducationFile,
@@ -123,7 +123,7 @@ export default function BulkUpload() {
   const [extUploading, setExtUploading] = useState(false);
   const [extRows, setExtRows] = useState<ExternalEducationRowData[] | null>(null);
   const [extError, setExtError] = useState<string | null>(null);
-  const [extSuccess, setExtSuccess] = useState<string | null>(null);
+  const [extResult, setExtResult] = useState<BulkUploadExternalResponse | null>(null);
   const [extPage, setExtPage] = useState(1);
 
   // Inline editing
@@ -166,7 +166,7 @@ export default function BulkUpload() {
 
     setExtFile(file);
     setExtError(null);
-    setExtSuccess(null);
+    setExtResult(null);
     setExtRows(null);
     setExtPage(1);
     setEditingCell(null);
@@ -194,7 +194,7 @@ export default function BulkUpload() {
     setExtFile(null);
     setExtRows(null);
     setExtError(null);
-    setExtSuccess(null);
+    setExtResult(null);
     setExtPage(1);
     setEditingCell(null);
     setEditedCells(new Set());
@@ -223,7 +223,7 @@ export default function BulkUpload() {
       const result = await bulkUploadExternalEducations(records);
 
       if (result.success) {
-        setExtSuccess(`${result.insertedCount ?? 0}건이 성공적으로 업로드되었습니다.`);
+        setExtResult(result);
         setExtRows(null);
         setExtFile(null);
         setExtPage(1);
@@ -717,9 +717,39 @@ export default function BulkUpload() {
               <p className="text-sm text-rose-700">{extError}</p>
             </article>
           )}
-          {extSuccess && (
-            <article className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm text-emerald-700">{extSuccess}</p>
+
+          {extResult && (
+            <article className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+              <h3 className="text-base font-semibold">업로드 결과</h3>
+              <p className="text-sm text-slate-700">
+                성공{" "}
+                <strong className="text-emerald-700">{extResult.insertedCount ?? 0}</strong>건 / 실패{" "}
+                <strong className={(extResult.failedCount ?? 0) > 0 ? "text-rose-700" : "text-slate-700"}>
+                  {extResult.failedCount ?? 0}
+                </strong>건
+              </p>
+              {(extResult.failedRows?.length ?? 0) > 0 && (
+                <div className="max-h-64 overflow-auto rounded border border-slate-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                        <th className="py-2 px-3 w-12">No</th>
+                        <th className="py-2 px-3 w-24">이름</th>
+                        <th className="py-2 px-3">사유</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {extResult.failedRows!.map((row, i) => (
+                        <tr key={i} className="border-b border-slate-100 last:border-b-0">
+                          <td className="py-2 px-3">{row.no}</td>
+                          <td className="py-2 px-3">{row.name}</td>
+                          <td className="py-2 px-3 text-rose-700">{row.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </article>
           )}
 

@@ -16,8 +16,8 @@ certificationsRoutes.use(authMiddleware);
 
 certificationsRoutes.get("/", listCertifications);
 certificationsRoutes.get("/users/options", rbacMiddleware([role_enum.ADMIN]), listCertificationUserOptions);
-certificationsRoutes.post("/", rbacMiddleware([role_enum.ADMIN]), createCertification);
-certificationsRoutes.put("/:id", rbacMiddleware([role_enum.ADMIN]), updateCertification);
-certificationsRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteCertification);
+certificationsRoutes.post("/", createCertification);
+certificationsRoutes.put("/:id", updateCertification);
+certificationsRoutes.delete("/:id", deleteCertification);
 
 export default certificationsRoutes;

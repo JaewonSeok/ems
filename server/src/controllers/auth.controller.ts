@@ -215,7 +215,7 @@ export async function searchImpersonableUsers(req: AuthenticatedRequest, res: Re
       where: {
         is_active: true,
         role: { not: role_enum.ADMIN },
-        ...(q ? { name: { contains: q } } : {}),
+        ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
       },
       select: { id: true, name: true, email: true, department: true, team: true, employee_id: true },
       orderBy: { name: "asc" },

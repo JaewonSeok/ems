@@ -145,8 +145,9 @@ function pageNumbers(currentPage: number, totalPages: number) {
 }
 
 export default function Certification() {
-  const { effectiveUser: user } = useCurrentUser();
+  const { effectiveUser: user, isImpersonating } = useCurrentUser();
   const isAdmin = user?.role === "ADMIN";
+  const canEdit = !isImpersonating;
 
   const [items, setItems] = useState<CertificationRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -333,7 +334,7 @@ export default function Certification() {
     <section className="space-y-4">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">자격증</h2>
-        {isAdmin && (
+        {canEdit && (
           <button onClick={openCreateModal} className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
             + 자격증 등록
           </button>
@@ -393,7 +394,7 @@ export default function Certification() {
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        {isAdmin && (
+                        {canEdit && (
                           <button
                             className="rounded border border-slate-300 px-2 py-1 text-xs"
                             title="수정"
@@ -403,7 +404,7 @@ export default function Certification() {
                             ✏ 수정
                           </button>
                         )}
-                        {isAdmin && (
+                        {canEdit && (
                           <button
                             className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
                             title="삭제"

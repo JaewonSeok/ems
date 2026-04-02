@@ -18,6 +18,12 @@ interface ExternalEducationRecord {
   certificate: string;
 }
 
+interface FailedRow {
+  no: number;
+  name: string;
+  reason: string;
+}
+
 function normalizeStr(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -44,22 +50,32 @@ interface ParsedRecord {
   certificateStatus: certificate_status_enum;
 }
 
-/**
- * Parses a record leniently — only throws if dates are completely unparseable
- * (in which case the row is skipped). All other invalid values use safe defaults.
- */
 function parseRecord(record: ExternalEducationRecord): ParsedRecord {
   const startDate = tryParseDate(record.startDate);
   const endDate = tryParseDate(record.endDate);
   if (!startDate || !endDate) {
-    throw new Error("날짜를 파싱할 수 없습니다.");
+    throw new Error("날짜를 파싱할 수 없습니다. (YYYY-MM-DD 형식 필요)");
   }
 
   const days = Number(record.days);
-  const safeDays = Number.isFinite(days) && days > 0 ? days : 1;
+  if (!Number.isFinite(days) || days <= 0) {
+    throw new Error("교육일수는 양수여야 합니다.");
+  }
 
   const cost = Number(record.cost);
-  const safeCost = Number.isFinite(cost) && cost >= 0 ? cost : 0;
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw new Error("교육비는 0 이상이어야 합니다.");
+  }
+
+  const educationName = normalizeStr(record.educationName);
+  if (!educationName) {
+    throw new Error("교육명은 필수입니다.");
+  }
+
+  const organizer = normalizeStr(record.organizer);
+  if (!organizer) {
+    throw new Error("교육주관은 필수입니다.");
+  }
 
   const certRaw = normalizeStr(record.certificate).toUpperCase();
   const certStatus =
@@ -69,13 +85,13 @@ function parseRecord(record: ExternalEducationRecord): ParsedRecord {
     name: normalizeStr(record.name),
     team: normalizeStr(record.team),
     division: normalizeStr(record.division),
-    educationName: normalizeStr(record.educationName),
+    educationName,
     educationType: normalizeStr(record.educationType),
     startDate,
     endDate,
-    hours: safeDays * 8,
-    cost: safeCost,
-    organizer: normalizeStr(record.organizer),
+    hours: days * 8,
+    cost,
+    organizer,
     certificateStatus: certStatus,
   };
 }
@@ -113,38 +129,57 @@ export async function bulkUploadExternalEducations(req: AuthenticatedRequest, re
     }
 
     let insertedCount = 0;
+    const failedRows: FailedRow[] = [];
 
     for (const record of records) {
+      const no = record.no;
+      const name = normalizeStr(record.name);
+
       try {
         const parsed = parseRecord(record);
-        if (!parsed.name) continue; // can't look up user without a name
+
+        if (!parsed.name) {
+          failedRows.push({ no, name: "(이름 없음)", reason: "이름은 필수입니다." });
+          continue;
+        }
 
         const userId = userMap.get(`${parsed.name}::${parsed.team}::${parsed.division}`);
-        if (!userId) continue; // user not found — skip silently
+        if (!userId) {
+          failedRows.push({ no, name: parsed.name, reason: "시스템에 등록된 직원을 찾을 수 없습니다. (이름·팀·본부 일치 확인)" });
+          continue;
+        }
 
         await prisma.external_trainings.create({
           data: {
             user: { connect: { id: userId } },
-            training_name: parsed.educationName || "(무제)",
+            training_name: parsed.educationName,
             education_category: parsed.educationType || null,
             type: training_type_enum.OFFLINE,
             start_date: parsed.startDate,
             end_date: parsed.endDate,
             hours: new Prisma.Decimal(parsed.hours),
             cost: parsed.cost,
-            institution: parsed.organizer || "-",
+            institution: parsed.organizer,
             certificate_status: parsed.certificateStatus,
           },
         });
 
         insertedCount++;
-      } catch {
-        // Skip records that can't be saved (e.g. unparseable dates)
-        continue;
+      } catch (err) {
+        failedRows.push({
+          no,
+          name: name || "(이름 없음)",
+          reason: err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.",
+        });
       }
     }
 
-    return res.status(200).json({ success: true, insertedCount });
+    return res.status(200).json({
+      success: true,
+      insertedCount,
+      failedCount: failedRows.length,
+      failedRows,
+    });
   } catch (error) {
     console.error("bulkUploadExternalEducations error:", error);
     return res.status(500).json({ success: false, error: "일괄 업로드 처리에 실패했습니다." });

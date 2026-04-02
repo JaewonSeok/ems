@@ -11,6 +11,7 @@ type NavItem = { to: string; label: string; adminOnly?: boolean; positionOnly?: 
 
 const navItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", adminOnly: true },
+  { to: "/my-dashboard", label: "내 교육 현황" },
   { to: "/external-training", label: "사외교육" },
   { to: "/internal-training", label: "사내교육" },
   { to: "/internal-lecture", label: "사내강의" },
@@ -87,7 +88,7 @@ export default function MainLayout() {
         )}
         {isImpersonating && (
           <button
-            onClick={() => useImpersonationStore.getState().stopImpersonation()}
+            onClick={stopImpersonation}
             className="w-full rounded px-3 py-2 mt-3 bg-amber-600 hover:bg-amber-500 text-sm"
           >
             보기 종료

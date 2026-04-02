@@ -1,6 +1,7 @@
 export type AllRecordsCategoryFilter = "all" | "external-training" | "internal-training" | "internal-lecture" | "certification";
 export type AllRecordsSortField =
   | "employee_name"
+  | "employee_id"
   | "department"
   | "team"
   | "category"

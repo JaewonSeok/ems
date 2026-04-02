@@ -44,6 +44,9 @@ export default function TeamRecords() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Summary search
+  const [summarySearch, setSummarySearch] = useState("");
+
   // Detail modal
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -103,7 +106,10 @@ export default function TeamRecords() {
     setDetailData(null);
     setDetailError(null);
     try {
-      const data = await getMemberRecords(memberId);
+      const data = await getMemberRecords(memberId, {
+        startDate: `${year}-01-01`,
+        endDate: `${year}-12-31`,
+      });
       setDetailData(data);
     } catch (err) {
       setDetailError(getErrorMessage(err));
@@ -117,6 +123,15 @@ export default function TeamRecords() {
     setDetailData(null);
     setDetailError(null);
   }
+
+  const filteredSummaryMembers = useMemo(() => {
+    if (!summaryData) return [];
+    if (!summarySearch.trim()) return summaryData.members;
+    const q = summarySearch.trim().toLowerCase();
+    return summaryData.members.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.employee_id.toLowerCase().includes(q)
+    );
+  }, [summaryData, summarySearch]);
 
   const scopeLabel = useMemo(() => {
     if (!summaryData) return "";
@@ -210,7 +225,16 @@ export default function TeamRecords() {
 
               {/* 직원별 현황 */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-auto">
-                <h3 className="font-semibold mb-3">직원별 교육 현황 ({year}년)</h3>
+                <div className="flex items-center justify-between mb-3 gap-3">
+                  <h3 className="font-semibold">직원별 교육 현황 ({year}년)</h3>
+                  <input
+                    type="search"
+                    placeholder="이름/사번 검색"
+                    value={summarySearch}
+                    onChange={(e) => setSummarySearch(e.target.value)}
+                    className="rounded border border-slate-300 px-3 py-1.5 text-sm w-48"
+                  />
+                </div>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-left">
@@ -224,12 +248,14 @@ export default function TeamRecords() {
                     </tr>
                   </thead>
                   <tbody>
-                    {summaryData.members.length === 0 ? (
+                    {filteredSummaryMembers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-500">소속 직원이 없습니다.</td>
+                        <td colSpan={7} className="py-8 text-center text-slate-500">
+                          {summarySearch.trim() ? "검색 결과가 없습니다." : "소속 직원이 없습니다."}
+                        </td>
                       </tr>
                     ) : (
-                      summaryData.members.map((m) => (
+                      filteredSummaryMembers.map((m) => (
                         <tr key={m.id} className="border-b border-slate-100 last:border-b-0">
                           <td className="py-2 pr-3">{m.name}</td>
                           <td className="py-2 pr-3">{m.employee_id}</td>
@@ -335,7 +361,7 @@ export default function TeamRecords() {
           <div className="w-full max-w-3xl rounded-xl bg-white p-5 shadow-lg max-h-[85vh] flex flex-col">
             <header className="mb-4 flex items-center justify-between shrink-0">
               <h3 className="text-lg font-semibold">
-                {detailData ? `${detailData.member.name} 교육 이수 내역` : "교육 내역 로딩 중..."}
+                {detailData ? `${detailData.member.name} · ${year}년 교육 이수 내역` : "교육 내역 로딩 중..."}
               </h3>
               <button onClick={closeDetail} className="text-slate-500">닫기</button>
             </header>

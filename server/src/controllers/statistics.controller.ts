@@ -5,6 +5,7 @@ import {
   getStatisticsCostTrend,
   getStatisticsOverview,
   getStatisticsTopEmployees,
+  getStatisticsYearComparison,
   parseStatisticsFilters
 } from "../services/statistics.service";
 
@@ -129,5 +130,25 @@ export async function statisticsTopEmployees(req: AuthenticatedRequest, res: Res
 
     console.error("statisticsTopEmployees error:", error);
     return res.status(500).json({ message: "Failed to load statistics top employees" });
+  }
+}
+
+export async function statisticsYearComparison(req: AuthenticatedRequest, res: Response) {
+  try {
+    const scope = getScope(req);
+    const filters = parseFilters(req);
+    const result = await getStatisticsYearComparison(filters, scope);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (handleFilterError(error, res)) {
+      return;
+    }
+
+    console.error("statisticsYearComparison error:", error);
+    return res.status(500).json({ message: "Failed to load statistics year comparison" });
   }
 }

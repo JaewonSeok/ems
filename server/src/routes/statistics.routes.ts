@@ -3,7 +3,8 @@ import {
   statisticsCompletionRate,
   statisticsCostTrend,
   statisticsOverview,
-  statisticsTopEmployees
+  statisticsTopEmployees,
+  statisticsYearComparison
 } from "../controllers/statistics.controller";
 import { authMiddleware } from "../middleware/auth";
 import { rbacMiddleware } from "../middleware/rbac";
@@ -17,5 +18,6 @@ statisticsRoutes.get("/overview", statisticsOverview);
 statisticsRoutes.get("/cost-trend", statisticsCostTrend);
 statisticsRoutes.get("/completion-rate", statisticsCompletionRate);
 statisticsRoutes.get("/top-employees", statisticsTopEmployees);
+statisticsRoutes.get("/year-comparison", statisticsYearComparison);
 
 export default statisticsRoutes;

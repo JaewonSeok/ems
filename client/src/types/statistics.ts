@@ -1,7 +1,7 @@
 export type StatisticsScope = "ADMIN" | "USER";
 
 export type StatisticsCategory = "external-training" | "internal-training" | "internal-lecture" | "certification";
-export type StatisticsCategoryFilter = "external-training" | "internal-training" | "internal-lecture";
+export type StatisticsCategoryFilter = "external-training" | "internal-training" | "internal-lecture" | "certification";
 
 export interface StatisticsFilters {
   year: number;
@@ -63,5 +63,18 @@ export interface StatisticsTopEmployeesResponse {
     department: string;
     team: string;
     totalHours: number;
+  }>;
+}
+
+export interface StatisticsYearComparisonResponse {
+  filters: StatisticsFilters;
+  currentYear: number;
+  previousYear: number;
+  items: Array<{
+    month: number;
+    currentHours: number;
+    previousHours: number;
+    currentCount: number;
+    previousCount: number;
   }>;
 }

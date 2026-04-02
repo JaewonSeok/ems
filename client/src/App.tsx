@@ -14,6 +14,7 @@ import UserManagement from "./pages/UserManagement";
 import BulkUpload from "./pages/BulkUpload";
 import TeamRecords from "./pages/TeamRecords";
 import MyCredits from "./pages/MyCredits";
+import MyDashboard from "./pages/MyDashboard";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/internal-lecture" element={<InternalLecture />} />
         <Route path="/certification" element={<Certification />} />
         <Route path="/my-credits" element={<MyCredits />} />
+        <Route path="/my-dashboard" element={<MyDashboard />} />
         <Route
           path="/statistics"
           element={

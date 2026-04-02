@@ -18,7 +18,8 @@ import {
   getStatisticsCompletionRate,
   getStatisticsCostTrend,
   getStatisticsOverview,
-  getStatisticsTopEmployees
+  getStatisticsTopEmployees,
+  getStatisticsYearComparison
 } from "../api/statistics";
 import {
   StatisticsCategory,
@@ -26,7 +27,8 @@ import {
   StatisticsCompletionRateResponse,
   StatisticsCostTrendResponse,
   StatisticsOverviewResponse,
-  StatisticsTopEmployeesResponse
+  StatisticsTopEmployeesResponse,
+  StatisticsYearComparisonResponse
 } from "../types/statistics";
 
 type StatisticsData = {
@@ -34,12 +36,14 @@ type StatisticsData = {
   costTrend: StatisticsCostTrendResponse;
   completionRate: StatisticsCompletionRateResponse;
   topEmployees: StatisticsTopEmployeesResponse;
+  yearComparison: StatisticsYearComparisonResponse;
 };
 
 const CATEGORY_FILTER_OPTIONS: Array<{ value: StatisticsCategoryFilter; label: string }> = [
   { value: "external-training", label: "사외교육" },
   { value: "internal-training", label: "사내교육" },
-  { value: "internal-lecture", label: "사내강의" }
+  { value: "internal-lecture", label: "사내강의" },
+  { value: "certification", label: "자격증" }
 ];
 
 const CHART_CATEGORY_LABEL: Record<StatisticsCategory, string> = {
@@ -132,7 +136,8 @@ export default function Statistics() {
   const [categories, setCategories] = useState<StatisticsCategoryFilter[]>([
     "external-training",
     "internal-training",
-    "internal-lecture"
+    "internal-lecture",
+    "certification"
   ]);
 
   const [loading, setLoading] = useState(true);
@@ -154,14 +159,15 @@ export default function Statistics() {
         category: categoryParam
       };
 
-      const [overview, costTrend, completionRate, topEmployees] = await Promise.all([
+      const [overview, costTrend, completionRate, topEmployees, yearComparison] = await Promise.all([
         getStatisticsOverview(params),
         getStatisticsCostTrend(params),
         getStatisticsCompletionRate(params),
-        getStatisticsTopEmployees(params)
+        getStatisticsTopEmployees(params),
+        getStatisticsYearComparison(params)
       ]);
 
-      setData({ overview, costTrend, completionRate, topEmployees });
+      setData({ overview, costTrend, completionRate, topEmployees, yearComparison });
     } catch (loadError) {
       setData(null);
       setError(getErrorMessage(loadError));
@@ -236,6 +242,14 @@ export default function Statistics() {
     [data]
   );
 
+  const yearComparisonData = useMemo(
+    () =>
+      data
+        ? data.yearComparison.items.map((item) => ({ ...item, label: monthLabel(item.month) }))
+        : [],
+    [data]
+  );
+
   const hasAnyData = useMemo(() => {
     if (!data) {
       return false;
@@ -250,7 +264,8 @@ export default function Statistics() {
       hasAnyValue(
         data.completionRate.items.map((item) => item.submitted + item.notSubmitted + item.approved + item.rejected)
       ) ||
-      data.topEmployees.items.length > 0
+      data.topEmployees.items.length > 0 ||
+      hasAnyValue(data.yearComparison.items.map((item) => item.currentHours + item.previousHours))
     );
   }, [data]);
 
@@ -502,6 +517,32 @@ export default function Statistics() {
                     <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
                     <Line type="monotone" dataKey="cost" stroke="#dc2626" strokeWidth={2} dot={{ r: 2 }} />
                   </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyChartMessage />
+            )}
+          </StatisticsCard>
+
+          <StatisticsCard title={`연도별 교육 시간 비교 (${data.yearComparison.previousYear}년 vs ${data.yearComparison.currentYear}년)`}>
+            {hasAnyValue(yearComparisonData.map((item) => item.currentHours + item.previousHours)) ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={yearComparisonData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => `${formatNumber(Number(value))}시간`} />
+                    <Legend
+                      formatter={(value) =>
+                        value === "previousHours"
+                          ? `${data.yearComparison.previousYear}년`
+                          : `${data.yearComparison.currentYear}년`
+                      }
+                    />
+                    <Bar dataKey="previousHours" fill="#94a3b8" name="previousHours" />
+                    <Bar dataKey="currentHours" fill="#2563eb" name="currentHours" />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (

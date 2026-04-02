@@ -15,7 +15,14 @@
       "Bash(printf:*)",
       "Bash(node:*)",
       "Bash(curl:*)",
-      "Bash(vercel env:*)"
+      "Bash(vercel env:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"require\\(''@supabase/supabase-js''\\)\")",
+      "Read(//c/Users/RSUPPORT/Desktop/**)",
+      "Bash(pg_restore:*)",
+      "Bash(PGPASSWORD='sgt19450922!@' /c/Program Files/PostgreSQL/18/bin/pg_restore.exe:*)",
+      "Bash(PGPASSWORD='sgt19450922!@' /c/Program Files/PostgreSQL/18/bin/psql.exe:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

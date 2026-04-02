@@ -3,7 +3,8 @@ import {
   StatisticsCompletionRateResponse,
   StatisticsCostTrendResponse,
   StatisticsOverviewResponse,
-  StatisticsTopEmployeesResponse
+  StatisticsTopEmployeesResponse,
+  StatisticsYearComparisonResponse
 } from "../types/statistics";
 
 export type StatisticsQuery = {
@@ -29,5 +30,10 @@ export async function getStatisticsCompletionRate(params: StatisticsQuery) {
 
 export async function getStatisticsTopEmployees(params: StatisticsQuery) {
   const response = await http.get<StatisticsTopEmployeesResponse>("/statistics/top-employees", { params });
+  return response.data;
+}
+
+export async function getStatisticsYearComparison(params: StatisticsQuery) {
+  const response = await http.get<StatisticsYearComparisonResponse>("/statistics/year-comparison", { params });
   return response.data;
 }

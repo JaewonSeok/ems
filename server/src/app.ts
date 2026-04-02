@@ -1,6 +1,8 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import allRecordsRoutes from "./routes/all-records.routes";
 import authRoutes from "./routes/auth.routes";
 import bulkUploadRoutes from "./routes/bulk-upload.routes";
@@ -19,6 +21,9 @@ dotenv.config();
 
 const app = express();
 
+// HTTP 보안 헤더 (PRD 3.3 — Helmet)
+app.use(helmet());
+
 // CORS 설정
 // - 로컬 개발: CORS_ORIGIN=http://localhost:3001 (.env)
 // - Vercel 배포: 프론트엔드와 API가 동일 도메인이므로 CORS 불필요 → 환경변수 미설정 시 비활성화
@@ -33,6 +38,19 @@ if (corsOrigin) {
     })
   );
 }
+
+// API 전체 rate-limit: 100회/분 (PRD 3.3)
+// 주의: express-rate-limit은 인스턴스 로컬 메모리 스토어를 사용하므로
+// Vercel 서버리스처럼 다중 인스턴스 환경에서는 인스턴스별로 카운트가 분리됩니다.
+// 엄격한 분산 rate-limit이 필요하면 Redis 기반 스토어(rate-limit-redis 등)로 교체하세요.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." }
+});
+app.use("/api", apiLimiter);
 
 app.use(express.json());
 

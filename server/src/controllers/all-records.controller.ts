@@ -21,6 +21,7 @@ const categoryWhitelist = new Set<AllRecordsCategoryFilter>([
 
 const sortWhitelist = new Set<AllRecordsSortField>([
   "employee_name",
+  "employee_id",
   "department",
   "team",
   "category",
@@ -141,7 +142,7 @@ function toExportRows(
     팀: record.team,
     카테고리: record.category_label,
     항목명: record.title,
-    구분: record.type ?? "-",
+    구분: record.type === "OFFLINE" ? "오프라인" : record.type === "ONLINE" ? "온라인" : "-",
     시작일: record.start_date ?? "-",
     종료일: record.end_date ?? "-",
     시간: record.hours ?? "-",

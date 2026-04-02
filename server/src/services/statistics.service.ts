@@ -587,6 +587,96 @@ export async function getStatisticsCompletionRate(
   };
 }
 
+export type StatisticsYearComparisonResponse = {
+  filters: {
+    year: number;
+    department: string;
+    category: string;
+  };
+  currentYear: number;
+  previousYear: number;
+  items: Array<{
+    month: number;
+    currentHours: number;
+    previousHours: number;
+    currentCount: number;
+    previousCount: number;
+  }>;
+};
+
+export async function getStatisticsYearComparison(
+  filters: StatisticsFilters,
+  scope: StatisticsScope
+): Promise<StatisticsYearComparisonResponse> {
+  const previousYear = filters.year - 1;
+  const previousFilters: StatisticsFilters = {
+    ...filters,
+    year: previousYear
+  };
+
+  type RowWithHours = { start_date: Date; hours: Prisma.Decimal };
+  type CertRow = { acquired_date: Date };
+
+  async function fetchRows(f: StatisticsFilters): Promise<{ date: Date; hours: number }[]> {
+    const results: { date: Date; hours: number }[] = [];
+
+    const [externalRows, internalRows, lectureRows, certRows] = await Promise.all([
+      includesCategory(f, "external-training")
+        ? prisma.external_trainings.findMany({ where: buildExternalWhere(f, scope), select: { start_date: true, hours: true } })
+        : Promise.resolve([] as RowWithHours[]),
+      includesCategory(f, "internal-training")
+        ? prisma.internal_trainings.findMany({ where: buildInternalWhere(f, scope), select: { start_date: true, hours: true } })
+        : Promise.resolve([] as RowWithHours[]),
+      includesCategory(f, "internal-lecture")
+        ? prisma.internal_lectures.findMany({ where: buildLectureWhere(f, scope), select: { start_date: true, hours: true } })
+        : Promise.resolve([] as RowWithHours[]),
+      includesCategory(f, "certification")
+        ? prisma.certifications.findMany({ where: buildCertificationWhere(f, scope), select: { acquired_date: true } })
+        : Promise.resolve([] as CertRow[])
+    ]);
+
+    for (const row of externalRows) results.push({ date: row.start_date, hours: toNumber(row.hours) });
+    for (const row of internalRows) results.push({ date: row.start_date, hours: toNumber(row.hours) });
+    for (const row of lectureRows) results.push({ date: row.start_date, hours: toNumber(row.hours) });
+    for (const row of certRows) results.push({ date: (row as CertRow).acquired_date, hours: 0 });
+
+    return results;
+  }
+
+  const [currentRows, previousRows] = await Promise.all([fetchRows(filters), fetchRows(previousFilters)]);
+
+  const items = Array.from({ length: 12 }, (_, index) => ({
+    month: index + 1,
+    currentHours: 0,
+    previousHours: 0,
+    currentCount: 0,
+    previousCount: 0
+  }));
+
+  for (const row of currentRows) {
+    const m = monthFromDate(row.date) - 1;
+    items[m].currentHours = Number((items[m].currentHours + row.hours).toFixed(1));
+    items[m].currentCount += 1;
+  }
+
+  for (const row of previousRows) {
+    const m = monthFromDate(row.date) - 1;
+    items[m].previousHours = Number((items[m].previousHours + row.hours).toFixed(1));
+    items[m].previousCount += 1;
+  }
+
+  return {
+    filters: {
+      year: filters.year,
+      department: filters.department ?? "all",
+      category: filters.rawCategory || "all"
+    },
+    currentYear: filters.year,
+    previousYear,
+    items
+  };
+}
+
 export async function getStatisticsTopEmployees(
   filters: StatisticsFilters,
   scope: StatisticsScope

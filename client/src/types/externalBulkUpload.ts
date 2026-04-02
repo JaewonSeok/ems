@@ -33,8 +33,16 @@ export interface ExternalEducationRowData {
   certificate: string;
 }
 
+export interface BulkUploadExternalFailedRow {
+  no: number;
+  name: string;
+  reason: string;
+}
+
 export interface BulkUploadExternalResponse {
   success: boolean;
   insertedCount?: number;
+  failedCount?: number;
+  failedRows?: BulkUploadExternalFailedRow[];
   error?: string;
 }

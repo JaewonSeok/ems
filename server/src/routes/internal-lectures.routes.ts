@@ -16,8 +16,8 @@ internalLectureRoutes.use(authMiddleware);
 
 internalLectureRoutes.get("/", listInternalLectures);
 internalLectureRoutes.get("/users/options", rbacMiddleware([role_enum.ADMIN]), listInternalLectureUserOptions);
-internalLectureRoutes.post("/", rbacMiddleware([role_enum.ADMIN]), createInternalLecture);
-internalLectureRoutes.put("/:id", rbacMiddleware([role_enum.ADMIN]), updateInternalLecture);
-internalLectureRoutes.delete("/:id", rbacMiddleware([role_enum.ADMIN]), deleteInternalLecture);
+internalLectureRoutes.post("/", createInternalLecture);
+internalLectureRoutes.put("/:id", updateInternalLecture);
+internalLectureRoutes.delete("/:id", deleteInternalLecture);
 
 export default internalLectureRoutes;

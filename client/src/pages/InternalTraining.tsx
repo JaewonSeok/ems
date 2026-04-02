@@ -483,7 +483,7 @@ export default function InternalTraining() {
     <section className="space-y-4">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">사내교육</h2>
-        {isAdmin && (
+        {canEdit && (
           <button onClick={openCreateModal} className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
             + 사내교육 등록
           </button>
@@ -562,6 +562,24 @@ export default function InternalTraining() {
                         {/* ── USER / Impersonation view ── */}
                         {!isAdmin && (
                           <>
+                            {canEdit && (
+                              <>
+                                <button
+                                  className="rounded border border-slate-300 px-2 py-1 text-xs"
+                                  disabled={rowActionLoadingId === item.id}
+                                  onClick={() => openEditModal(item)}
+                                >
+                                  ✏ 수정
+                                </button>
+                                <button
+                                  className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                  disabled={rowActionLoadingId === item.id}
+                                  onClick={() => void onDelete(item)}
+                                >
+                                  🗑 삭제
+                                </button>
+                              </>
+                            )}
                             {item.certificate_file ? (
                               <>
                                 <button

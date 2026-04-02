@@ -52,6 +52,7 @@ export default function EmployeeSelectModal({ onClose }: Props) {
       onClose();
     } catch {
       setError("직원 정보를 불러오지 못했습니다.");
+    } finally {
       setStarting(null);
     }
   }

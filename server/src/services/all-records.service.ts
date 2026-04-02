@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 export type AllRecordsCategoryFilter = "all" | "external-training" | "internal-training" | "internal-lecture" | "certification";
 export type AllRecordsSortField =
   | "employee_name"
+  | "employee_id"
   | "department"
   | "team"
   | "category"
@@ -80,7 +81,7 @@ export async function getUnifiedRecords(params: { search: string; category: AllR
   if (shouldInclude(params.category, "external-training")) {
     const where: Prisma.external_trainingsWhereInput | undefined = searchWhere
       ? {
-          OR: [{ training_name: searchWhere }, { user: { name: searchWhere } }]
+          OR: [{ training_name: searchWhere }, { user: { name: searchWhere } }, { user: { employee_id: searchWhere } }]
         }
       : undefined;
 
@@ -128,7 +129,7 @@ export async function getUnifiedRecords(params: { search: string; category: AllR
   if (shouldInclude(params.category, "internal-training")) {
     const where: Prisma.internal_trainingsWhereInput | undefined = searchWhere
       ? {
-          OR: [{ training_name: searchWhere }, { user: { name: searchWhere } }]
+          OR: [{ training_name: searchWhere }, { user: { name: searchWhere } }, { user: { employee_id: searchWhere } }]
         }
       : undefined;
 
@@ -176,7 +177,7 @@ export async function getUnifiedRecords(params: { search: string; category: AllR
   if (shouldInclude(params.category, "internal-lecture")) {
     const where: Prisma.internal_lecturesWhereInput | undefined = searchWhere
       ? {
-          OR: [{ lecture_name: searchWhere }, { user: { name: searchWhere } }]
+          OR: [{ lecture_name: searchWhere }, { user: { name: searchWhere } }, { user: { employee_id: searchWhere } }]
         }
       : undefined;
 
@@ -224,7 +225,7 @@ export async function getUnifiedRecords(params: { search: string; category: AllR
   if (shouldInclude(params.category, "certification")) {
     const where: Prisma.certificationsWhereInput | undefined = searchWhere
       ? {
-          OR: [{ cert_name: searchWhere }, { user: { name: searchWhere } }]
+          OR: [{ cert_name: searchWhere }, { user: { name: searchWhere } }, { user: { employee_id: searchWhere } }]
         }
       : undefined;
 
@@ -311,6 +312,8 @@ export function sortUnifiedRecords(records: UnifiedRecordInternal[], sort: AllRe
     switch (sort) {
       case "employee_name":
         return compareNullableString(left.employee_name, right.employee_name, order);
+      case "employee_id":
+        return compareNullableString(left.employee_id, right.employee_id, order);
       case "department":
         return compareNullableString(left.department, right.department, order);
       case "team":
