@@ -54,13 +54,21 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       }
     }
 
-    // ── Read-only enforcement during impersonation ────────────────────────
-    // Certificate upload/delete are allowed even during impersonation so that
-    // admins can manage employee certificates while viewing the employee view.
+    // ── Write control during impersonation ────────────────────────────────
+    // ADMIN이 직원 화면 보기 중일 때, 교육 CRUD(등록/수정/삭제)와
+    // 수료증 업로드/삭제를 허용한다. req.user는 대상 직원으로 설정되어 있으므로
+    // 컨트롤러에서 해당 직원의 데이터로 처리된다.
+    // (impersonation 자체가 ADMIN 인증 후에만 가능하므로 보안상 안전함)
     if (req.originalAdmin && req.method !== "GET") {
-      const isCertificateEndpoint = req.path.includes("/certificate");
-      if (!isCertificateEndpoint) {
-        return res.status(403).json({ message: "impersonation 중에는 읽기만 가능합니다." });
+      const allowedPaths = [
+        "/external-trainings",
+        "/internal-trainings",
+        "/internal-lectures",
+        "/certifications"
+      ];
+      const isAllowed = allowedPaths.some((p) => req.baseUrl.includes(p));
+      if (!isAllowed) {
+        return res.status(403).json({ message: "impersonation 중에는 교육 관련 기능만 사용 가능합니다." });
       }
     }
 

@@ -8,7 +8,9 @@ export function rbacMiddleware(allowedRoles: role_enum[]) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    // impersonation 중이면 실제 ADMIN의 역할로 권한 체크
+    const effectiveRole = req.originalAdmin?.role ?? req.user.role;
+    if (!allowedRoles.includes(effectiveRole)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 

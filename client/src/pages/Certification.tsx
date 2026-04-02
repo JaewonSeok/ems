@@ -401,7 +401,7 @@ export default function Certification() {
     <section className="space-y-4">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">자격증</h2>
-        {canEdit && (
+        {(canEdit || isImpersonating) && (
           <button onClick={openCreateModal} className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
             + 자격증 등록
           </button>
