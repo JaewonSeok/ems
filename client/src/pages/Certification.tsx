@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createCertification,
   deleteCertification,
+  deleteCertificationCertificate,
+  downloadCertificationCertificate,
   listCertificationUserOptions,
   listCertifications,
-  updateCertification
+  updateCertification,
+  uploadCertificationCertificate
 } from "../api/certifications";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { CertificationFormPayload, CertificationRecord, CertificationUserOption } from "../types/certification";
@@ -104,7 +107,7 @@ function buildFormPayload(form: FormState, admin: boolean): CertificationFormPay
   const certName = form.cert_name.trim();
   const grade = form.grade.trim();
   const acquiredDate = parseStrictDate(form.acquired_date);
-  const credits = parseStrictCredits(form.credits);
+  const credits = admin ? parseStrictCredits(form.credits) : null;
 
   if (!certName) {
     throw new Error("자격증명은 필수입니다.");
@@ -167,6 +170,8 @@ export default function Certification() {
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [rowActionLoadingId, setRowActionLoadingId] = useState<string | null>(null);
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [userOptions, setUserOptions] = useState<CertificationUserOption[]>([]);
 
   const [reloadToken, setReloadToken] = useState(0);
@@ -312,6 +317,68 @@ export default function Certification() {
     }
   }
 
+  function onClickUpload(record: CertificationRecord) {
+    setUploadTargetId(record.id);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  }
+
+  async function onFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !uploadTargetId) {
+      return;
+    }
+    setRowActionLoadingId(uploadTargetId);
+    try {
+      await uploadCertificationCertificate(uploadTargetId, file);
+      refreshList();
+    } catch (uploadError) {
+      window.alert(getErrorMessage(uploadError));
+    } finally {
+      setRowActionLoadingId(null);
+      setUploadTargetId(null);
+      event.target.value = "";
+    }
+  }
+
+  async function onDownload(record: CertificationRecord) {
+    if (!record.certificate_file) {
+      return;
+    }
+    setRowActionLoadingId(record.id);
+    try {
+      const file = await downloadCertificationCertificate(record.id);
+      const objectUrl = URL.createObjectURL(file.blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = file.fileName;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (downloadError) {
+      window.alert(getErrorMessage(downloadError));
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
+  async function onDeleteCertificate(record: CertificationRecord) {
+    const confirmed = window.confirm("첨부파일을 삭제하시겠습니까?");
+    if (!confirmed) {
+      return;
+    }
+    setRowActionLoadingId(record.id);
+    try {
+      await deleteCertificationCertificate(record.id);
+      refreshList();
+    } catch (deleteError) {
+      window.alert(getErrorMessage(deleteError));
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
   async function onDelete(record: CertificationRecord) {
     const confirmed = window.confirm(`\"${record.cert_name}\" 자격증 이력을 삭제하시겠습니까?`);
     if (!confirmed) {
@@ -351,6 +418,8 @@ export default function Certification() {
         />
       </div>
 
+      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={onFileInputChange} />
+
       {loading ? (
         <article className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">로딩 중...</article>
       ) : error ? (
@@ -362,7 +431,7 @@ export default function Certification() {
         </article>
       ) : (
         <article className="rounded-xl border border-slate-200 bg-white p-4 overflow-auto">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left">
                 <th className="py-2 pr-3">이름</th>
@@ -372,13 +441,14 @@ export default function Certification() {
                 <th className="py-2 pr-3">등급</th>
                 <th className="py-2 pr-3">취득일</th>
                 <th className="py-2 pr-3">인정학점</th>
+                <th className="py-2 pr-3">첨부파일</th>
                 <th className="py-2 pr-3">관리</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-500">
                     조회된 자격증 이력이 없습니다.
                   </td>
                 </tr>
@@ -392,6 +462,43 @@ export default function Certification() {
                     <td className="py-2 pr-3">{item.grade}</td>
                     <td className="py-2 pr-3">{item.acquired_date}</td>
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.certificate_file ? (
+                          <>
+                            <span className="text-xs text-slate-600 truncate max-w-[80px]" title={item.certificate_file.split("/").pop()}>
+                              📄 {item.certificate_file.split("/").pop()}
+                            </span>
+                            <button
+                              className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => void onDownload(item)}
+                            >
+                              ⬇ 다운로드
+                            </button>
+                            {canEdit && (
+                              <button
+                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                disabled={rowActionLoadingId === item.id}
+                                onClick={() => void onDeleteCertificate(item)}
+                              >
+                                🗑 삭제
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          canEdit && (
+                            <button
+                              className="rounded border border-slate-300 px-2 py-1 text-xs"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => onClickUpload(item)}
+                            >
+                              📎 업로드
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
                         {canEdit && (
@@ -515,17 +622,19 @@ export default function Certification() {
                     required
                   />
                 </label>
-                <label className="space-y-1">
-                  <span className="text-sm text-slate-700">인정학점</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={formState.credits}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
+                {isAdmin && (
+                  <label className="space-y-1">
+                    <span className="text-sm text-slate-700">인정학점</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formState.credits}
+                      onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                )}
               </div>
 
               {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}

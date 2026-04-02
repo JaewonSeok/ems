@@ -85,3 +85,11 @@ export function externalTrainingCertificateUpload(req: Request, res: Response, n
 export function internalTrainingCertificateUpload(req: Request, res: Response, next: NextFunction) {
   handleCertificateUpload(certificateUploader, req, res, next);
 }
+
+export function internalLectureCertificateUpload(req: Request, res: Response, next: NextFunction) {
+  handleCertificateUpload(certificateUploader, req, res, next);
+}
+
+export function certificationCertificateUpload(req: Request, res: Response, next: NextFunction) {
+  handleCertificateUpload(certificateUploader, req, res, next);
+}

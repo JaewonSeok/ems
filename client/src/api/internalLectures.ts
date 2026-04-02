@@ -29,3 +29,32 @@ export async function updateInternalLecture(id: string, payload: InternalLecture
 export async function deleteInternalLecture(id: string) {
   await http.delete(`/internal-lectures/${id}`);
 }
+
+export async function uploadInternalLectureCertificate(id: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await http.post<InternalLectureRecord>(`/internal-lectures/${id}/certificate`, formData);
+  return response.data;
+}
+
+export async function downloadInternalLectureCertificate(id: string) {
+  const response = await http.get<Blob>(`/internal-lectures/${id}/certificate`, {
+    responseType: "blob"
+  });
+
+  const disposition = String(response.headers["content-disposition"] || "");
+  const matched = disposition.match(/filename="?([^"]+)"?/);
+  const fileName = matched?.[1] || `internal-lecture-${id}-certificate`;
+
+  return {
+    blob: response.data,
+    fileName,
+    contentType: String(response.headers["content-type"] || "")
+  };
+}
+
+export async function deleteInternalLectureCertificate(id: string) {
+  const response = await http.delete<InternalLectureRecord>(`/internal-lectures/${id}/certificate`);
+  return response.data;
+}

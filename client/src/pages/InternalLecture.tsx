@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createInternalLecture,
   deleteInternalLecture,
+  deleteInternalLectureCertificate,
+  downloadInternalLectureCertificate,
   listInternalLectureUserOptions,
   listInternalLectures,
-  updateInternalLecture
+  updateInternalLecture,
+  uploadInternalLectureCertificate
 } from "../api/internalLectures";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { InternalLectureFormPayload, InternalLectureRecord, InternalLectureUserOption, TrainingType } from "../types/internalLecture";
@@ -94,7 +97,7 @@ function buildFormPayload(form: FormState, admin: boolean): InternalLectureFormP
   }
 
   let credits: number | null = null;
-  if (form.credits.trim()) {
+  if (admin && form.credits.trim()) {
     const parsedCredits = Number(form.credits);
     if (!Number.isFinite(parsedCredits) || parsedCredits < 0) {
       throw new Error("학점은 0 이상 숫자여야 합니다.");
@@ -158,6 +161,8 @@ export default function InternalLecture() {
   const [formSubmitting, setFormSubmitting] = useState(false);
 
   const [rowActionLoadingId, setRowActionLoadingId] = useState<string | null>(null);
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [userOptions, setUserOptions] = useState<InternalLectureUserOption[]>([]);
 
   const [reloadToken, setReloadToken] = useState(0);
@@ -306,6 +311,68 @@ export default function InternalLecture() {
     }
   }
 
+  function onClickUpload(record: InternalLectureRecord) {
+    setUploadTargetId(record.id);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  }
+
+  async function onFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !uploadTargetId) {
+      return;
+    }
+    setRowActionLoadingId(uploadTargetId);
+    try {
+      await uploadInternalLectureCertificate(uploadTargetId, file);
+      refreshList();
+    } catch (uploadError) {
+      window.alert(getErrorMessage(uploadError));
+    } finally {
+      setRowActionLoadingId(null);
+      setUploadTargetId(null);
+      event.target.value = "";
+    }
+  }
+
+  async function onDownload(record: InternalLectureRecord) {
+    if (!record.certificate_file) {
+      return;
+    }
+    setRowActionLoadingId(record.id);
+    try {
+      const file = await downloadInternalLectureCertificate(record.id);
+      const objectUrl = URL.createObjectURL(file.blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = file.fileName;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (downloadError) {
+      window.alert(getErrorMessage(downloadError));
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
+  async function onDeleteCertificate(record: InternalLectureRecord) {
+    const confirmed = window.confirm("첨부파일을 삭제하시겠습니까?");
+    if (!confirmed) {
+      return;
+    }
+    setRowActionLoadingId(record.id);
+    try {
+      await deleteInternalLectureCertificate(record.id);
+      refreshList();
+    } catch (deleteError) {
+      window.alert(getErrorMessage(deleteError));
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  }
+
   async function onDelete(record: InternalLectureRecord) {
     const confirmed = window.confirm(`\"${record.lecture_name}\" 강의 이력을 삭제하시겠습니까?`);
     if (!confirmed) {
@@ -345,6 +412,8 @@ export default function InternalLecture() {
         />
       </div>
 
+      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={onFileInputChange} />
+
       {loading ? (
         <article className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">로딩 중...</article>
       ) : error ? (
@@ -356,7 +425,7 @@ export default function InternalLecture() {
         </article>
       ) : (
         <article className="rounded-xl border border-slate-200 bg-white p-4 overflow-auto">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left">
                 <th className="py-2 pr-3">이름</th>
@@ -367,13 +436,14 @@ export default function InternalLecture() {
                 <th className="py-2 pr-3">강의시간</th>
                 <th className="py-2 pr-3">주관부서(강사명)</th>
                 <th className="py-2 pr-3">학점</th>
+                <th className="py-2 pr-3">첨부파일</th>
                 <th className="py-2 pr-3">관리</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
+                  <td colSpan={10} className="py-8 text-center text-slate-500">
                     조회된 사내강의 이력이 없습니다.
                   </td>
                 </tr>
@@ -390,6 +460,43 @@ export default function InternalLecture() {
                     <td className="py-2 pr-3">{formatNumber(item.hours)}</td>
                     <td className="py-2 pr-3">{item.department_instructor}</td>
                     <td className="py-2 pr-3">{formatNumber(item.credits)}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.certificate_file ? (
+                          <>
+                            <span className="text-xs text-slate-600 truncate max-w-[80px]" title={item.certificate_file.split("/").pop()}>
+                              📄 {item.certificate_file.split("/").pop()}
+                            </span>
+                            <button
+                              className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => void onDownload(item)}
+                            >
+                              ⬇ 다운로드
+                            </button>
+                            {canEdit && (
+                              <button
+                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700"
+                                disabled={rowActionLoadingId === item.id}
+                                onClick={() => void onDeleteCertificate(item)}
+                              >
+                                🗑 삭제
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          canEdit && (
+                            <button
+                              className="rounded border border-slate-300 px-2 py-1 text-xs"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => onClickUpload(item)}
+                            >
+                              📎 업로드
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
                         {canEdit && (
@@ -546,17 +653,19 @@ export default function InternalLecture() {
                     required
                   />
                 </label>
-                <label className="space-y-1">
-                  <span className="text-sm text-slate-700">학점</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={formState.credits}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
+                {isAdmin && (
+                  <label className="space-y-1">
+                    <span className="text-sm text-slate-700">학점</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formState.credits}
+                      onChange={(event) => setFormState((prev) => ({ ...prev, credits: event.target.value }))}
+                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                )}
               </div>
 
               {formError ? <p className="text-sm text-rose-700">{formError}</p> : null}

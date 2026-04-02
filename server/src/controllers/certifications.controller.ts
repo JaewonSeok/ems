@@ -1,7 +1,10 @@
+import { randomUUID } from "crypto";
 import { Prisma, role_enum } from "@prisma/client";
 import { Response } from "express";
 import { prisma } from "../config/prisma";
+import { getSupabase, CERTIFICATES_BUCKET } from "../config/supabase";
 import { AuthenticatedRequest } from "../middleware/auth";
+import { extensionByMime, validateFileBuffer } from "../middleware/upload";
 
 class ValidationError extends Error {}
 
@@ -101,6 +104,7 @@ function mapRecord(
     grade: record.grade,
     acquired_date: toDateString(record.acquired_date),
     credits: toNumber(record.credits),
+    certificate_file: record.certificate_file ?? null,
     created_at: record.created_at.toISOString(),
     updated_at: record.updated_at.toISOString()
   };
@@ -236,7 +240,7 @@ export async function createCertification(req: AuthenticatedRequest, res: Respon
     const cert_name = parseBoundedString(body.cert_name, "cert_name", 255);
     const grade = parseBoundedString(body.grade, "grade", 100);
     const acquired_date = parseStrictDate(body.acquired_date, "acquired_date");
-    const credits = parseCredits(body.credits);
+    const credits = user.role === role_enum.ADMIN ? parseCredits(body.credits) : null;
 
     let targetUserId = user.id;
 
@@ -320,7 +324,7 @@ export async function updateCertification(req: AuthenticatedRequest, res: Respon
       updateData.acquired_date = parseStrictDate(body.acquired_date, "acquired_date");
     }
 
-    if (body.credits !== undefined) {
+    if (body.credits !== undefined && authUser.role === role_enum.ADMIN) {
       const credits = parseCredits(body.credits);
       updateData.credits = credits === null ? null : new Prisma.Decimal(credits);
     }
@@ -391,6 +395,11 @@ export async function deleteCertification(req: AuthenticatedRequest, res: Respon
     }
 
     assertRecordAccess(req, existing);
+
+    if (existing.certificate_file) {
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    }
+
     await prisma.certifications.delete({ where: { id } });
 
     return res.status(200).json({ message: "Deleted" });
@@ -405,5 +414,141 @@ export async function deleteCertification(req: AuthenticatedRequest, res: Respon
 
     console.error("deleteCertification error:", error);
     return res.status(500).json({ message: "Failed to delete certification" });
+  }
+}
+
+export async function uploadCertificationCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file?.buffer) {
+      return res.status(400).json({ message: "file is required" });
+    }
+
+    const existing = await findCertificationById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Certification not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!validateFileBuffer(file.buffer, file.mimetype)) {
+      return res.status(400).json({ message: "Uploaded file signature is invalid for its type" });
+    }
+
+    if (existing.certificate_file) {
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    }
+
+    const ext = extensionByMime(file.mimetype);
+    const storagePath = `certifications/${Date.now()}-${randomUUID()}${ext}`;
+    const { error: uploadError } = await getSupabase().storage
+      .from(CERTIFICATES_BUCKET)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) {
+      console.error("Supabase Storage upload error:", uploadError);
+      return res.status(500).json({ message: `첨부파일 업로드 실패: ${uploadError.message}` });
+    }
+
+    const updated = await prisma.certifications.update({
+      where: { id },
+      data: { certificate_file: storagePath },
+      include: {
+        user: { select: { id: true, name: true, employee_id: true, department: true, team: true } }
+      }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("uploadCertificationCertificate error:", error);
+    return res.status(500).json({ message: "Failed to upload certificate" });
+  }
+}
+
+export async function deleteCertificationCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findCertificationById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Certification not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+
+    const updated = await prisma.certifications.update({
+      where: { id },
+      data: { certificate_file: null },
+      include: {
+        user: { select: { id: true, name: true, employee_id: true, department: true, team: true } }
+      }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("deleteCertificationCertificate error:", error);
+    return res.status(500).json({ message: "Failed to delete certificate" });
+  }
+}
+
+export async function downloadCertificationCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findCertificationById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Certification not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    const { data, error } = await getSupabase().storage.from(CERTIFICATES_BUCKET).download(existing.certificate_file);
+
+    if (error || !data) {
+      console.error("Supabase Storage download error:", error);
+      return res.status(404).json({ message: "Certificate file not found" });
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const fileName = existing.certificate_file.split("/").pop() ?? "certificate";
+    const contentType = data.type || "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    return res.send(buffer);
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("downloadCertificationCertificate error:", error);
+    return res.status(500).json({ message: "Failed to download certificate" });
   }
 }

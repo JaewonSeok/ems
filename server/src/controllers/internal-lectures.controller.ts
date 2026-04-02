@@ -1,7 +1,10 @@
+import { randomUUID } from "crypto";
 import { Prisma, role_enum, training_type_enum } from "@prisma/client";
 import { Response } from "express";
 import { prisma } from "../config/prisma";
+import { getSupabase, CERTIFICATES_BUCKET } from "../config/supabase";
 import { AuthenticatedRequest } from "../middleware/auth";
+import { extensionByMime, validateFileBuffer } from "../middleware/upload";
 
 class ValidationError extends Error {}
 
@@ -98,6 +101,7 @@ function mapRecord(
     hours: Number(record.hours),
     department_instructor: record.department_instructor,
     credits: toNumber(record.credits),
+    certificate_file: record.certificate_file ?? null,
     created_at: record.created_at.toISOString(),
     updated_at: record.updated_at.toISOString()
   };
@@ -237,10 +241,14 @@ export async function createInternalLecture(req: AuthenticatedRequest, res: Resp
     }
 
     const hours = parsePositiveNumber(body.hours, "hours", true);
-    const credits = body.credits === null || body.credits === undefined || body.credits === "" ? null : Number(body.credits);
 
-    if (credits !== null && (!Number.isFinite(credits) || credits < 0)) {
-      return res.status(400).json({ message: "credits must be >= 0" });
+    let credits: number | null = null;
+    if (user.role === role_enum.ADMIN) {
+      const raw = body.credits === null || body.credits === undefined || body.credits === "" ? null : Number(body.credits);
+      if (raw !== null && (!Number.isFinite(raw) || raw < 0)) {
+        return res.status(400).json({ message: "credits must be >= 0" });
+      }
+      credits = raw;
     }
 
     let targetUserId = user.id;
@@ -346,7 +354,7 @@ export async function updateInternalLecture(req: AuthenticatedRequest, res: Resp
       updateData.hours = new Prisma.Decimal(hours);
     }
 
-    if (body.credits !== undefined) {
+    if (body.credits !== undefined && authUser.role === role_enum.ADMIN) {
       if (body.credits === null || body.credits === "") {
         updateData.credits = null;
       } else {
@@ -422,6 +430,11 @@ export async function deleteInternalLecture(req: AuthenticatedRequest, res: Resp
     }
 
     assertRecordAccess(req, existing);
+
+    if (existing.certificate_file) {
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    }
+
     await prisma.internal_lectures.delete({ where: { id } });
 
     return res.status(200).json({ message: "Deleted" });
@@ -436,5 +449,137 @@ export async function deleteInternalLecture(req: AuthenticatedRequest, res: Resp
 
     console.error("deleteInternalLecture error:", error);
     return res.status(500).json({ message: "Failed to delete internal lecture" });
+  }
+}
+
+export async function uploadInternalLectureCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file?.buffer) {
+      return res.status(400).json({ message: "file is required" });
+    }
+
+    const existing = await findInternalLectureById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Internal lecture not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!validateFileBuffer(file.buffer, file.mimetype)) {
+      return res.status(400).json({ message: "Uploaded file signature is invalid for its type" });
+    }
+
+    if (existing.certificate_file) {
+      await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+    }
+
+    const ext = extensionByMime(file.mimetype);
+    const storagePath = `internal-lectures/${Date.now()}-${randomUUID()}${ext}`;
+    const { error: uploadError } = await getSupabase().storage
+      .from(CERTIFICATES_BUCKET)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadError) {
+      console.error("Supabase Storage upload error:", uploadError);
+      return res.status(500).json({ message: `첨부파일 업로드 실패: ${uploadError.message}` });
+    }
+
+    const updated = await prisma.internal_lectures.update({
+      where: { id },
+      data: { certificate_file: storagePath },
+      include: { user: { select: { id: true, name: true, employee_id: true } } }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("uploadInternalLectureCertificate error:", error);
+    return res.status(500).json({ message: "Failed to upload certificate" });
+  }
+}
+
+export async function deleteInternalLectureCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findInternalLectureById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Internal lecture not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    await getSupabase().storage.from(CERTIFICATES_BUCKET).remove([existing.certificate_file]).catch(() => undefined);
+
+    const updated = await prisma.internal_lectures.update({
+      where: { id },
+      data: { certificate_file: null },
+      include: { user: { select: { id: true, name: true, employee_id: true } } }
+    });
+
+    return res.status(200).json(mapRecord(updated));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("deleteInternalLectureCertificate error:", error);
+    return res.status(500).json({ message: "Failed to delete certificate" });
+  }
+}
+
+export async function downloadInternalLectureCertificate(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const existing = await findInternalLectureById(id);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Internal lecture not found" });
+    }
+
+    assertRecordAccess(req, existing);
+
+    if (!existing.certificate_file) {
+      return res.status(404).json({ message: "No certificate uploaded" });
+    }
+
+    const { data, error } = await getSupabase().storage.from(CERTIFICATES_BUCKET).download(existing.certificate_file);
+
+    if (error || !data) {
+      console.error("Supabase Storage download error:", error);
+      return res.status(404).json({ message: "Certificate file not found" });
+    }
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const fileName = existing.certificate_file.split("/").pop() ?? "certificate";
+    const contentType = data.type || "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    return res.send(buffer);
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (error instanceof Error && error.message === "Forbidden") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    console.error("downloadInternalLectureCertificate error:", error);
+    return res.status(500).json({ message: "Failed to download certificate" });
   }
 }

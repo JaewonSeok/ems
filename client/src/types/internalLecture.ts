@@ -12,6 +12,7 @@ export interface InternalLectureRecord {
   hours: number;
   department_instructor: string;
   credits: number | null;
+  certificate_file: string | null;
   created_at: string;
   updated_at: string;
 }

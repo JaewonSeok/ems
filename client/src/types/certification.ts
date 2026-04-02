@@ -9,6 +9,7 @@ export interface CertificationRecord {
   grade: string;
   acquired_date: string;
   credits: number | null;
+  certificate_file: string | null;
   created_at: string;
   updated_at: string;
 }
