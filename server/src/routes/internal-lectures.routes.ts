@@ -4,6 +4,7 @@ import {
   createInternalLecture,
   deleteInternalLecture,
   deleteInternalLectureCertificate,
+  distributeToLectures,
   downloadInternalLectureCertificate,
   listInternalLectureUserOptions,
   listInternalLectures,
@@ -24,6 +25,7 @@ internalLectureRoutes.post("/", createInternalLecture);
 internalLectureRoutes.put("/:id", updateInternalLecture);
 internalLectureRoutes.delete("/:id", deleteInternalLecture);
 
+internalLectureRoutes.post("/:id/distribute", rbacMiddleware([role_enum.ADMIN]), distributeToLectures);
 internalLectureRoutes.post("/:id/certificate", internalLectureCertificateUpload, uploadInternalLectureCertificate);
 internalLectureRoutes.get("/:id/certificate", downloadInternalLectureCertificate);
 internalLectureRoutes.delete("/:id/certificate", deleteInternalLectureCertificate);

@@ -10,6 +10,7 @@ import {
   uploadInternalLectureCertificate
 } from "../api/internalLectures";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import AttendeeSelectModal from "../components/shared/AttendeeSelectModal";
 import { InternalLectureFormPayload, InternalLectureRecord, InternalLectureUserOption, TrainingType } from "../types/internalLecture";
 
 const PAGE_LIMIT = 10;
@@ -169,6 +170,7 @@ export default function InternalLecture() {
   const [userOptions, setUserOptions] = useState<InternalLectureUserOption[]>([]);
 
   const [reloadToken, setReloadToken] = useState(0);
+  const [distributeTarget, setDistributeTarget] = useState<{ id: string; name: string } | null>(null);
 
   const refreshList = useCallback(() => {
     setReloadToken((value) => value + 1);
@@ -520,6 +522,16 @@ export default function InternalLecture() {
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
+                        {isAdmin && (
+                          <button
+                            className="rounded border border-indigo-300 px-2 py-1 text-xs text-indigo-700"
+                            title="출석 등록 (수강자 자동 등록)"
+                            disabled={rowActionLoadingId === item.id}
+                            onClick={() => setDistributeTarget({ id: item.id, name: item.lecture_name })}
+                          >
+                            👥 출석 등록
+                          </button>
+                        )}
                         {canEdit && (
                           <button
                             className="rounded border border-slate-300 px-2 py-1 text-xs"
@@ -708,6 +720,18 @@ export default function InternalLecture() {
           </div>
         </div>
       ) : null}
+
+      {distributeTarget && (
+        <AttendeeSelectModal
+          lectureId={distributeTarget.id}
+          lectureName={distributeTarget.name}
+          onClose={() => setDistributeTarget(null)}
+          onComplete={() => {
+            setDistributeTarget(null);
+            refreshList();
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -4,7 +4,6 @@ import {
   createInternalTraining,
   deleteInternalTraining,
   deleteInternalTrainingCertificate,
-  distributeToLectures,
   downloadInternalTrainingCertificate,
   listInternalTrainingUserOptions,
   listInternalTrainings,
@@ -24,7 +23,6 @@ internalTrainingRoutes.get("/users/options", rbacMiddleware([role_enum.ADMIN]), 
 internalTrainingRoutes.post("/", createInternalTraining);
 internalTrainingRoutes.put("/:id", updateInternalTraining);
 internalTrainingRoutes.delete("/:id", deleteInternalTraining);
-internalTrainingRoutes.post("/:id/distribute", rbacMiddleware([role_enum.ADMIN]), distributeToLectures);
 internalTrainingRoutes.post("/:id/certificate", internalTrainingCertificateUpload, uploadInternalTrainingCertificate);
 internalTrainingRoutes.get("/:id/certificate", downloadInternalTrainingCertificate);
 internalTrainingRoutes.delete("/:id/certificate", deleteInternalTrainingCertificate);

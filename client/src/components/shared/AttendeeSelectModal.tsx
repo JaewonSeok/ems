@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { distributeToLectures } from "../../api/internalTrainings";
-import { listInternalTrainingUserOptions } from "../../api/internalTrainings";
-import { InternalTrainingUserOption } from "../../types/internalTraining";
+import { distributeToLectures } from "../../api/internalLectures";
+import { listInternalLectureUserOptions } from "../../api/internalLectures";
+import { InternalLectureUserOption } from "../../types/internalLecture";
 
 type Props = {
-  trainingId: string;
-  trainingName: string;
+  lectureId: string;
+  lectureName: string;
   onClose: () => void;
   onComplete: () => void;
 };
 
-export default function AttendeeSelectModal({ trainingId, trainingName, onClose, onComplete }: Props) {
-  const [allUsers, setAllUsers] = useState<InternalTrainingUserOption[]>([]);
+export default function AttendeeSelectModal({ lectureId, lectureName, onClose, onComplete }: Props) {
+  const [allUsers, setAllUsers] = useState<InternalLectureUserOption[]>([]);
   const [query, setQuery] = useState("");
-  const [filtered, setFiltered] = useState<InternalTrainingUserOption[]>([]);
+  const [filtered, setFiltered] = useState<InternalLectureUserOption[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function AttendeeSelectModal({ trainingId, trainingName, onClose,
     inputRef.current?.focus();
     void (async () => {
       try {
-        const users = await listInternalTrainingUserOptions();
+        const users = await listInternalLectureUserOptions();
         setAllUsers(users);
         setFiltered(users);
       } catch {
@@ -82,7 +82,7 @@ export default function AttendeeSelectModal({ trainingId, trainingName, onClose,
     setSubmitting(true);
     setResultMessage(null);
     try {
-      const result = await distributeToLectures(trainingId, Array.from(selected));
+      const result = await distributeToLectures(lectureId, Array.from(selected));
       const parts: string[] = [];
       if (result.created_count > 0) parts.push(`${result.created_count}명 등록 완료`);
       if (result.skipped_duplicate > 0) parts.push(`${result.skipped_duplicate}명 중복 건너뜀`);
@@ -102,7 +102,7 @@ export default function AttendeeSelectModal({ trainingId, trainingName, onClose,
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <h2 className="text-base font-semibold text-slate-800">
-            출석 등록 — {trainingName}
+            출석 등록 — {lectureName}
           </h2>
           <button onClick={onClose} disabled={submitting} className="text-xl leading-none text-slate-400 hover:text-slate-600">
             &times;
