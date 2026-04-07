@@ -50,7 +50,7 @@ export default function MainLayout() {
   return (
     <div className="min-h-screen grid grid-cols-[240px_1fr]">
       <aside className="bg-slate-900 text-slate-100 p-4 flex flex-col">
-        <h1 className="text-lg font-semibold mb-1">Education Management System</h1>
+        <h1 className="text-lg font-semibold mb-1">Learning Management System</h1>
         <p className="text-xs text-slate-300 mb-1">{realUser?.name} ({realUser?.role})</p>
         {isImpersonating && (
           <p className="text-xs text-amber-400 mb-4">👁 보기: {effectiveUser?.name}</p>

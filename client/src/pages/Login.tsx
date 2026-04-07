@@ -56,7 +56,7 @@ export default function Login() {
           <div className="text-center">
             <p className="text-xl font-bold text-slate-800">교육 관리 시스템</p>
             <p className="text-xs text-slate-400 tracking-wider uppercase mt-0.5">
-              Education Management System
+              Learning Management System
             </p>
           </div>
         </div>

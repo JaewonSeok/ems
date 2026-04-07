@@ -1,4 +1,4 @@
-# EMS (Education Management System)
+# LMS (Learning Management System)
 
 This repository is currently set to **Milestone 03: Dashboard**.
 

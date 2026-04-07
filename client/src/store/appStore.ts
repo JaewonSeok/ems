@@ -6,6 +6,6 @@ type AppState = {
 };
 
 export const useAppStore = create<AppState>((set) => ({
-  appName: "EMS",
+  appName: "LMS",
   setAppName: (name) => set({ appName: name })
 }));
