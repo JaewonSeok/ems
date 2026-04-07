@@ -22,7 +22,11 @@
       "Bash(pg_restore:*)",
       "Bash(PGPASSWORD='sgt19450922!@' /c/Program Files/PostgreSQL/18/bin/pg_restore.exe:*)",
       "Bash(PGPASSWORD='sgt19450922!@' /c/Program Files/PostgreSQL/18/bin/psql.exe:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npx:*)",
+      "Bash(npm create:*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\employee-portal\\\\.claude\")",
+      "Bash(cp \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\rsupport-design-system\\\\.claude\\\\DESIGN_SYSTEM.md\" \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\employee-portal\\\\.claude\\\\DESIGN_SYSTEM.md\")"
     ]
   }
 }

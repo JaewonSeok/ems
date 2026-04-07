@@ -10,6 +10,7 @@ import {
   uploadInternalTrainingCertificate
 } from "../api/internalTrainings";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import AttendeeSelectModal from "../components/shared/AttendeeSelectModal";
 import CertificatePreviewModal from "../components/shared/CertificatePreviewModal";
 import { InternalTrainingFormPayload, InternalTrainingRecord, InternalTrainingUserOption, TrainingType } from "../types/internalTraining";
 
@@ -203,6 +204,7 @@ export default function InternalTraining() {
   const [userPreviewContentType, setUserPreviewContentType] = useState("");
 
   const [reloadToken, setReloadToken] = useState(0);
+  const [distributeTarget, setDistributeTarget] = useState<{ id: string; name: string } | null>(null);
 
   const refreshList = useCallback(() => {
     setReloadToken((value) => value + 1);
@@ -612,6 +614,14 @@ export default function InternalTraining() {
                         {isAdmin && (
                           <>
                             <button
+                              className="rounded border border-indigo-300 px-2 py-1 text-xs text-indigo-700"
+                              title="출석 등록 (사내강의 자동 생성)"
+                              disabled={rowActionLoadingId === item.id}
+                              onClick={() => setDistributeTarget({ id: item.id, name: item.training_name })}
+                            >
+                              👥 출석 등록
+                            </button>
+                            <button
                               className="rounded border border-slate-300 px-2 py-1 text-xs"
                               title="수료증 업로드"
                               disabled={rowActionLoadingId === item.id}
@@ -848,6 +858,18 @@ export default function InternalTraining() {
             a.href = userPreviewUrl;
             a.download = userPreviewFileName;
             a.click();
+          }}
+        />
+      )}
+
+      {distributeTarget && (
+        <AttendeeSelectModal
+          trainingId={distributeTarget.id}
+          trainingName={distributeTarget.name}
+          onClose={() => setDistributeTarget(null)}
+          onComplete={() => {
+            setDistributeTarget(null);
+            refreshList();
           }}
         />
       )}

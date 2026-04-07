@@ -214,7 +214,9 @@ export async function listInternalTrainingUserOptions(_req: AuthenticatedRequest
       select: {
         id: true,
         name: true,
-        employee_id: true
+        employee_id: true,
+        department: true,
+        team: true
       },
       orderBy: [{ name: "asc" }, { employee_id: "asc" }]
     });
@@ -592,5 +594,85 @@ export async function downloadInternalTrainingCertificate(req: AuthenticatedRequ
     }
     console.error("downloadInternalTrainingCertificate error:", error);
     return res.status(404).json({ message: "Certificate file not found" });
+  }
+}
+
+export async function distributeToLectures(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const { attendee_ids } = req.body as { attendee_ids?: string[] };
+
+    // 1. 입력 검증
+    if (!attendee_ids || !Array.isArray(attendee_ids) || attendee_ids.length === 0) {
+      return res.status(400).json({ message: "attendee_ids 배열이 필요합니다." });
+    }
+
+    if (attendee_ids.length > 200) {
+      return res.status(400).json({ message: "한 번에 최대 200명까지 등록 가능합니다." });
+    }
+
+    // 2. 원본 사내교육 레코드 조회
+    const training = await prisma.internal_trainings.findUnique({
+      where: { id }
+    });
+
+    if (!training) {
+      return res.status(404).json({ message: "사내교육을 찾을 수 없습니다." });
+    }
+
+    // 3. 유효한 직원만 필터링 (활성 상태, 존재하는 ID)
+    const validUsers = await prisma.users.findMany({
+      where: {
+        id: { in: attendee_ids },
+        is_active: true
+      },
+      select: { id: true }
+    });
+
+    const validIds = new Set(validUsers.map((u) => u.id));
+    const invalidIds = attendee_ids.filter((aid) => !validIds.has(aid));
+
+    // 4. 이미 동일 교육에 대한 사내강의 레코드가 있는 직원 제외 (중복 방지)
+    const existingLectures = await prisma.internal_lectures.findMany({
+      where: {
+        user_id: { in: Array.from(validIds) },
+        lecture_name: training.training_name,
+        start_date: training.start_date,
+        end_date: training.end_date
+      },
+      select: { user_id: true }
+    });
+
+    const alreadyRegistered = new Set(existingLectures.map((l) => l.user_id));
+    const newAttendeeIds = Array.from(validIds).filter((uid) => !alreadyRegistered.has(uid));
+
+    // 5. 사내강의 레코드 일괄 생성
+    let createdCount = 0;
+    if (newAttendeeIds.length > 0) {
+      const result = await prisma.internal_lectures.createMany({
+        data: newAttendeeIds.map((userId) => ({
+          user_id: userId,
+          lecture_name: training.training_name,
+          type: training.type,
+          start_date: training.start_date,
+          end_date: training.end_date,
+          hours: training.hours,
+          department_instructor: training.institution,
+          credits: null
+        }))
+      });
+      createdCount = result.count;
+    }
+
+    return res.status(200).json({
+      message: "출석 등록 완료",
+      created_count: createdCount,
+      skipped_duplicate: alreadyRegistered.size,
+      skipped_invalid: invalidIds.length,
+      total_requested: attendee_ids.length
+    });
+  } catch (error) {
+    console.error("distributeToLectures error:", error);
+    return res.status(500).json({ message: "출석 등록에 실패했습니다." });
   }
 }

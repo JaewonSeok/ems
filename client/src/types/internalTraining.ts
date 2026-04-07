@@ -45,4 +45,6 @@ export interface InternalTrainingUserOption {
   id: string;
   name: string;
   employee_id: string;
+  department: string;
+  team: string;
 }

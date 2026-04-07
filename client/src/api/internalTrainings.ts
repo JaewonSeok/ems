@@ -58,3 +58,19 @@ export async function downloadInternalTrainingCertificate(id: string) {
     fileName
   };
 }
+
+export interface DistributeResult {
+  message: string;
+  created_count: number;
+  skipped_duplicate: number;
+  skipped_invalid: number;
+  total_requested: number;
+}
+
+export async function distributeToLectures(trainingId: string, attendeeIds: string[]) {
+  const response = await http.post<DistributeResult>(
+    `/internal-trainings/${trainingId}/distribute`,
+    { attendee_ids: attendeeIds }
+  );
+  return response.data;
+}
