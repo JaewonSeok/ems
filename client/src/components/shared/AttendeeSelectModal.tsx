@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { distributeToLectures } from "../../api/internalLectures";
+import { distributeToTrainings } from "../../api/internalLectures";
 import { listInternalLectureUserOptions } from "../../api/internalLectures";
 import { InternalLectureUserOption } from "../../types/internalLecture";
 
@@ -82,7 +82,7 @@ export default function AttendeeSelectModal({ lectureId, lectureName, onClose, o
     setSubmitting(true);
     setResultMessage(null);
     try {
-      const result = await distributeToLectures(lectureId, Array.from(selected));
+      const result = await distributeToTrainings(lectureId, Array.from(selected));
       const parts: string[] = [];
       if (result.created_count > 0) parts.push(`${result.created_count}명 등록 완료`);
       if (result.skipped_duplicate > 0) parts.push(`${result.skipped_duplicate}명 중복 건너뜀`);

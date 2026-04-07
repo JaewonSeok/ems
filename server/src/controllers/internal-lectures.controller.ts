@@ -598,7 +598,7 @@ export async function downloadInternalLectureCertificate(req: AuthenticatedReque
 // UUID v4 allowlist — 외부 입력값 형식 검증용 (KISA2021-1/16)
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function distributeToLectures(req: AuthenticatedRequest, res: Response) {
+export async function distributeToTrainings(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
     const body = req.body as Record<string, unknown>;
@@ -644,32 +644,34 @@ export async function distributeToLectures(req: AuthenticatedRequest, res: Respo
     const validIds = new Set(validUsers.map((u) => u.id));
     const invalidIds = safeAttendeeIds.filter((aid) => !validIds.has(aid));
 
-    // 4. 동일 강의 레코드가 이미 있는 직원 제외 (중복 방지)
-    const existingLectures = await prisma.internal_lectures.findMany({
+    // 4. 동일 교육 레코드가 이미 있는 직원 제외 (중복 방지)
+    const existingTrainings = await prisma.internal_trainings.findMany({
       where: {
         user_id: { in: Array.from(validIds) },
-        lecture_name: sourceLecture.lecture_name,
+        training_name: sourceLecture.lecture_name,
         start_date: sourceLecture.start_date,
         end_date: sourceLecture.end_date
       },
       select: { user_id: true }
     });
 
-    const alreadyRegistered = new Set(existingLectures.map((l) => l.user_id));
+    const alreadyRegistered = new Set(existingTrainings.map((t) => t.user_id));
     const newAttendeeIds = Array.from(validIds).filter((uid) => !alreadyRegistered.has(uid));
 
-    // 5. 사내강의 레코드 일괄 생성
+    // 5. 사내교육 수강자 레코드 일괄 생성
     let createdCount = 0;
     if (newAttendeeIds.length > 0) {
-      const result = await prisma.internal_lectures.createMany({
+      const result = await prisma.internal_trainings.createMany({
         data: newAttendeeIds.map((userId) => ({
           user_id: userId,
-          lecture_name: sourceLecture.lecture_name,
+          training_name: sourceLecture.lecture_name,
           type: sourceLecture.type,
           start_date: sourceLecture.start_date,
           end_date: sourceLecture.end_date,
           hours: sourceLecture.hours,
-          department_instructor: sourceLecture.department_instructor,
+          institution: sourceLecture.department_instructor,
+          certificate_status: "NOT_SUBMITTED" as const,
+          certificate_file: null,
           credits: null
         }))
       });
@@ -684,7 +686,7 @@ export async function distributeToLectures(req: AuthenticatedRequest, res: Respo
       total_requested: attendee_ids.length
     });
   } catch (error) {
-    console.error("distributeToLectures error:", error);
+    console.error("distributeToTrainings error:", error);
     return res.status(500).json({ message: "출석 등록에 실패했습니다." });
   }
 }

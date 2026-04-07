@@ -67,7 +67,7 @@ export interface DistributeResult {
   total_requested: number;
 }
 
-export async function distributeToLectures(lectureId: string, attendeeIds: string[]) {
+export async function distributeToTrainings(lectureId: string, attendeeIds: string[]) {
   const response = await http.post<DistributeResult>(
     `/internal-lectures/${lectureId}/distribute`,
     { attendee_ids: attendeeIds }
