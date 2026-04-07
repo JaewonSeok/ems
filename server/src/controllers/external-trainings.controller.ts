@@ -184,6 +184,15 @@ export async function listExternalTrainings(req: AuthenticatedRequest, res: Resp
       ];
     }
 
+    const yearParam = String(req.query.year || "").trim();
+    if (yearParam && /^\d{4}$/.test(yearParam)) {
+      const year = Number(yearParam);
+      where.start_date = {
+        gte: new Date(Date.UTC(year, 0, 1)),
+        lt: new Date(Date.UTC(year + 1, 0, 1))
+      };
+    }
+
     const [total, items] = await Promise.all([
       prisma.external_trainings.count({ where }),
       prisma.external_trainings.findMany({

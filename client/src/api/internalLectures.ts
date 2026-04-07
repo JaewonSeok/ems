@@ -6,7 +6,7 @@ import {
   InternalLectureUserOption
 } from "../types/internalLecture";
 
-export async function listInternalLectures(params: { search?: string; page?: number; limit?: number }) {
+export async function listInternalLectures(params: { search?: string; page?: number; limit?: number; year?: number | string }) {
   const response = await http.get<InternalLectureListResponse>("/internal-lectures", { params });
   return response.data;
 }

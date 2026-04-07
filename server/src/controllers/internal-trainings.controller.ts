@@ -167,6 +167,15 @@ export async function listInternalTrainings(req: AuthenticatedRequest, res: Resp
       ];
     }
 
+    const yearParam = String(req.query.year || "").trim();
+    if (yearParam && /^\d{4}$/.test(yearParam)) {
+      const year = Number(yearParam);
+      where.start_date = {
+        gte: new Date(Date.UTC(year, 0, 1)),
+        lt: new Date(Date.UTC(year + 1, 0, 1))
+      };
+    }
+
     const [total, items] = await Promise.all([
       prisma.internal_trainings.count({ where }),
       prisma.internal_trainings.findMany({
@@ -597,19 +606,33 @@ export async function downloadInternalTrainingCertificate(req: AuthenticatedRequ
   }
 }
 
+// UUID v4 allowlist — 외부 입력값 형식 검증용 (KISA2021-1/16)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function distributeToLectures(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { attendee_ids } = req.body as { attendee_ids?: string[] };
+    const body = req.body as Record<string, unknown>;
+    const attendee_ids: unknown = body.attendee_ids;
 
     // 1. 입력 검증
-    if (!attendee_ids || !Array.isArray(attendee_ids) || attendee_ids.length === 0) {
+    if (!Array.isArray(attendee_ids) || attendee_ids.length === 0) {
       return res.status(400).json({ message: "attendee_ids 배열이 필요합니다." });
     }
 
     if (attendee_ids.length > 200) {
       return res.status(400).json({ message: "한 번에 최대 200명까지 등록 가능합니다." });
     }
+
+    // 각 요소의 타입·UUID 형식 allowlist 검증 (KISA2021-1: 외부입력 → DB Sink 흐름 통제)
+    const hasMalformed = attendee_ids.some(
+      (aid) => typeof aid !== "string" || !UUID_REGEX.test(aid)
+    );
+    if (hasMalformed) {
+      return res.status(400).json({ message: "attendee_ids 형식이 올바르지 않습니다." });
+    }
+
+    const safeAttendeeIds = attendee_ids as string[];
 
     // 2. 원본 사내교육 레코드 조회
     const training = await prisma.internal_trainings.findUnique({
@@ -623,14 +646,14 @@ export async function distributeToLectures(req: AuthenticatedRequest, res: Respo
     // 3. 유효한 직원만 필터링 (활성 상태, 존재하는 ID)
     const validUsers = await prisma.users.findMany({
       where: {
-        id: { in: attendee_ids },
+        id: { in: safeAttendeeIds },
         is_active: true
       },
       select: { id: true }
     });
 
     const validIds = new Set(validUsers.map((u) => u.id));
-    const invalidIds = attendee_ids.filter((aid) => !validIds.has(aid));
+    const invalidIds = safeAttendeeIds.filter((aid) => !validIds.has(aid));
 
     // 4. 이미 동일 교육에 대한 사내강의 레코드가 있는 직원 제외 (중복 방지)
     const existingLectures = await prisma.internal_lectures.findMany({

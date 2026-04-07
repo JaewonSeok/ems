@@ -6,7 +6,7 @@ import {
   ExternalTrainingUserOption
 } from "../types/externalTraining";
 
-export async function listExternalTrainings(params: { search?: string; page?: number; limit?: number }) {
+export async function listExternalTrainings(params: { search?: string; page?: number; limit?: number; year?: number | string }) {
   const response = await http.get<ExternalTrainingListResponse>("/external-trainings", { params });
   return response.data;
 }

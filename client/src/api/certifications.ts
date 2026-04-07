@@ -6,7 +6,7 @@ import {
   CertificationUserOption
 } from "../types/certification";
 
-export async function listCertifications(params: { search?: string; page?: number; limit?: number }) {
+export async function listCertifications(params: { search?: string; page?: number; limit?: number; year?: number | string }) {
   const response = await http.get<CertificationListResponse>("/certifications", { params });
   return response.data;
 }

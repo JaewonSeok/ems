@@ -26,7 +26,8 @@
       "Bash(npx:*)",
       "Bash(npm create:*)",
       "Bash(mkdir -p \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\employee-portal\\\\.claude\")",
-      "Bash(cp \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\rsupport-design-system\\\\.claude\\\\DESIGN_SYSTEM.md\" \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\employee-portal\\\\.claude\\\\DESIGN_SYSTEM.md\")"
+      "Bash(cp \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\rsupport-design-system\\\\.claude\\\\DESIGN_SYSTEM.md\" \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\챗봇\\\\employee-portal\\\\.claude\\\\DESIGN_SYSTEM.md\")",
+      "Bash(python3 -c ':*)"
     ]
   }
 }

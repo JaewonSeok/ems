@@ -171,6 +171,15 @@ export async function listCertifications(req: AuthenticatedRequest, res: Respons
       ];
     }
 
+    const yearParam = String(req.query.year || "").trim();
+    if (yearParam && /^\d{4}$/.test(yearParam)) {
+      const year = Number(yearParam);
+      where.acquired_date = {
+        gte: new Date(Date.UTC(year, 0, 1)),
+        lt: new Date(Date.UTC(year + 1, 0, 1))
+      };
+    }
+
     const [total, items] = await Promise.all([
       prisma.certifications.count({ where }),
       prisma.certifications.findMany({

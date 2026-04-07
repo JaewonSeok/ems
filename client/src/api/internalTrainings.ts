@@ -6,7 +6,7 @@ import {
   InternalTrainingUserOption
 } from "../types/internalTraining";
 
-export async function listInternalTrainings(params: { search?: string; page?: number; limit?: number }) {
+export async function listInternalTrainings(params: { search?: string; page?: number; limit?: number; year?: number | string }) {
   const response = await http.get<InternalTrainingListResponse>("/internal-trainings", { params });
   return response.data;
 }

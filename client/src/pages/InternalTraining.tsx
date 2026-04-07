@@ -174,12 +174,15 @@ export default function InternalTraining() {
   const isAdmin = user?.role === "ADMIN";
   const canEdit = !isImpersonating;
 
+  const currentYear = new Date().getFullYear();
+
   const [items, setItems] = useState<InternalTrainingRecord[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedYear, setSelectedYear] = useState<number | "">(currentYear);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +233,8 @@ export default function InternalTraining() {
         const response = await listInternalTrainings({
           page,
           limit: PAGE_LIMIT,
-          search: search || undefined
+          search: search || undefined,
+          year: selectedYear || undefined
         });
 
         if (canceled) {
@@ -260,7 +264,7 @@ export default function InternalTraining() {
     return () => {
       canceled = true;
     };
-  }, [page, search, reloadToken]);
+  }, [page, search, selectedYear, reloadToken]);
 
   useEffect(() => {
     let canceled = false;
@@ -481,6 +485,12 @@ export default function InternalTraining() {
     }
   }
 
+  function handleYearChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    setSelectedYear(val === "" ? "" : Number(val));
+    setPage(1);
+  }
+
   return (
     <section className="space-y-4">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -493,13 +503,24 @@ export default function InternalTraining() {
       </header>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <input
-          type="search"
-          placeholder="교육명/이름 검색"
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            placeholder="교육명/이름 검색"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+          <select
+            value={selectedYear}
+            onChange={handleYearChange}
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">전체</option>
+            <option value={currentYear}>{currentYear}년</option>
+            {currentYear > 2025 && <option value={2025}>2025년</option>}
+          </select>
+        </div>
       </div>
 
       <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={onFileInputChange} />
